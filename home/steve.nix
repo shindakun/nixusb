@@ -44,16 +44,29 @@
   # ---- gh (GitHub CLI) -------------------------------------------------
   programs.gh.enable = true;
 
+  # ---- Default browser: Firefox ----------------------------------------
+  # GNOME Web (Epiphany) breaks OAuth redirect flows (e.g. claude /login fails
+  # with "request not allowed"). Firefox works, so make it the default for
+  # http/https/html, which is what `xdg-open` (and claude /login) use.
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications = {
+      "text/html" = "firefox.desktop";
+      "x-scheme-handler/http" = "firefox.desktop";
+      "x-scheme-handler/https" = "firefox.desktop";
+    };
+  };
+
   # ---- Hyprland (Wayland compositor) ----------------------------------
   # System enablement is in modules/hyprland.nix; this is the per-user config.
   # A starter setup: kitty terminal, wofi launcher, waybar, mako notifications.
   wayland.windowManager.hyprland = {
     enable = true;
+    # Variables ($mod etc.) go in `variables`, which Home Manager emits FIRST,
+    # before any bind that references them. Putting them in `settings` could
+    # emit them after the binds, so Hyprland parses `$mod` before it's defined
+    # ("<name> expected near '$'"). SUPER is inlined in binds to be safe.
     settings = {
-      "$mod" = "SUPER";
-      "$term" = "kitty";
-      "$menu" = "wofi --show drun";
-
       exec-once = [
         "waybar"
         "mako"
@@ -69,31 +82,31 @@
       };
 
       bind = [
-        "$mod, Return, exec, $term"
-        "$mod, D, exec, $menu"
-        "$mod, Q, killactive"
-        "$mod, M, exit"
-        "$mod, E, exec, nautilus"
-        "$mod, V, togglefloating"
-        "$mod, F, fullscreen"
-        "$mod, left, movefocus, l"
-        "$mod, right, movefocus, r"
-        "$mod, up, movefocus, u"
-        "$mod, down, movefocus, d"
-        "$mod, 1, workspace, 1"
-        "$mod, 2, workspace, 2"
-        "$mod, 3, workspace, 3"
-        "$mod, 4, workspace, 4"
-        "$mod SHIFT, 1, movetoworkspace, 1"
-        "$mod SHIFT, 2, movetoworkspace, 2"
-        "$mod SHIFT, 3, movetoworkspace, 3"
-        "$mod SHIFT, 4, movetoworkspace, 4"
+        "SUPER, Return, exec, kitty"
+        "SUPER, D, exec, wofi --show drun"
+        "SUPER, Q, killactive"
+        "SUPER, M, exit"
+        "SUPER, E, exec, nautilus"
+        "SUPER, V, togglefloating"
+        "SUPER, F, fullscreen"
+        "SUPER, left, movefocus, l"
+        "SUPER, right, movefocus, r"
+        "SUPER, up, movefocus, u"
+        "SUPER, down, movefocus, d"
+        "SUPER, 1, workspace, 1"
+        "SUPER, 2, workspace, 2"
+        "SUPER, 3, workspace, 3"
+        "SUPER, 4, workspace, 4"
+        "SUPER SHIFT, 1, movetoworkspace, 1"
+        "SUPER SHIFT, 2, movetoworkspace, 2"
+        "SUPER SHIFT, 3, movetoworkspace, 3"
+        "SUPER SHIFT, 4, movetoworkspace, 4"
         ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
       ];
 
       bindm = [
-        "$mod, mouse:272, movewindow"
-        "$mod, mouse:273, resizewindow"
+        "SUPER, mouse:272, movewindow"
+        "SUPER, mouse:273, resizewindow"
       ];
     };
   };

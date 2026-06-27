@@ -69,12 +69,69 @@
     wirelesstools # iwconfig / iwlist
     # (rfkill comes from util-linux in the base system, no package needed)
 
-    # wpa_supplicant + dhcpcd: manual fallback if nmtui won't cooperate. Drive
-    # wl directly:
-    #   wpa_passphrase "SSID" "PASS" | sudo tee /tmp/wpa.conf
-    #   sudo wpa_supplicant -B -i wlan0 -c /tmp/wpa.conf && sudo dhcpcd wlan0
     wpa_supplicant
     dhcpcd
+
+    # wifi-connect: the sequence that actually gets the Air's BCM4360 online.
+    # NetworkManager/iwd/nmtui don't work on this wl card (broken cfg80211);
+    # plain wpa_supplicant + dhcpcd does, but ONLY from a clean device state
+    # (stale wpa_supplicant/NetworkManager holding the card makes it fail).
+    # This kills competitors, resets the link, associates, and gets a DHCP lease.
+    # Usage:  wifi-connect "SSID" "PASSWORD"  [interface]   (iface defaults wlp3s0)
+    (writeShellScriptBin "wifi-connect" ''
+      set -e
+      ssid="''${1:-}"; pass="''${2:-}"; iface="''${3:-wlp3s0}"
+      if [ -z "$ssid" ] || [ -z "$pass" ]; then
+        echo 'usage: wifi-connect "SSID" "PASSWORD" [interface]' >&2
+        echo "(interface defaults to wlp3s0; check with: ip link)" >&2
+        exit 1
+      fi
+      echo "==> clearing anything holding $iface"
+      pkill wpa_supplicant 2>/dev/null || true
+      systemctl stop NetworkManager 2>/dev/null || true
+      systemctl stop iwd 2>/dev/null || true
+      echo "==> resetting $iface"
+      rfkill unblock all || true
+      ip link set "$iface" down || true
+      ip link set "$iface" up
+      echo "==> associating with $ssid"
+      wpa_passphrase "$ssid" "$pass" > /tmp/wpa.conf
+      wpa_supplicant -B -i "$iface" -c /tmp/wpa.conf
+      sleep 6
+      if ! iw dev "$iface" link | grep -qi connected; then
+        echo "!! not associated. Check the password, or run foreground to see why:" >&2
+        echo "   sudo wpa_supplicant -i $iface -c /tmp/wpa.conf" >&2
+        exit 1
+      fi
+      echo "==> associated; requesting DHCP lease"
+      dhcpcd "$iface" || true
+      sleep 3
+      ip -4 addr show "$iface" | grep -q 'inet ' \
+        && echo "==> online. test: ping nixos.org" \
+        || echo "!! no IP via DHCP; set one manually (ip addr add ... ; ip route add default via ...)"
+    '')
+
+    # nixusb-stage: create /mnt/etc, copy the baked-in flake to /mnt/etc/nixos,
+    # and make it writable (the ISO copy is read-only, which blocks hwconfig).
+    # Run AFTER partition/format/mount, BEFORE nixusb-hwconfig. Usage: nixusb-stage
+    (writeShellScriptBin "nixusb-stage" ''
+      set -e
+      src=/iso/etc/nixos-install/nixusb
+      [ -d "$src" ] || src=/etc/nixos-install/nixusb   # fallback path
+      if [ ! -d "$src" ]; then
+        echo "can't find the baked-in flake (looked in /iso/etc/... and /etc/...)" >&2
+        exit 1
+      fi
+      if ! mountpoint -q /mnt; then
+        echo "/mnt is not mounted: partition/format/mount the target disk first" >&2
+        exit 1
+      fi
+      echo "==> staging $src -> /mnt/etc/nixos"
+      mkdir -p /mnt/etc
+      cp -r "$src" /mnt/etc/nixos
+      chmod -R u+w /mnt/etc/nixos
+      echo "==> done. Next: nixusb-hwconfig macbook-air  (or xps-8300)"
+    '')
 
     # Generate this machine's hardware-configuration.nix straight into the
     # baked-in flake's host dir. Usage:  nixusb-hwconfig macbook-air
@@ -92,8 +149,7 @@
       esac
       dest="$flake/hosts/$host/hardware-configuration.nix"
       if [ ! -d "$flake/hosts/$host" ]; then
-        echo "no $flake/hosts/$host: copy the flake to $flake first" >&2
-        echo "  cp -r /etc/nixos-install/nixusb $flake" >&2
+        echo "no $flake/hosts/$host: stage the flake first with:  nixusb-stage" >&2
         exit 1
       fi
       echo "==> writing $dest"

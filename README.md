@@ -172,29 +172,34 @@ You land at a root shell on the live system.
 
 ## Step 4: Install (flake-based, the same flow on both machines)
 
-Join Wi-Fi. The ISO uses **iwd** (`iwctl`), which drives the `wl` card reliably
-and does its own DHCP, so this is normally all it takes:
+Join Wi-Fi with the baked-in `wifi-connect` helper. The Air's `wl` driver does
+not work with NetworkManager/iwd/nmtui (broken cfg80211 on this kernel); plain
+`wpa_supplicant` + `dhcpcd` does, but only from a clean device state. The helper
+handles all of that (kill competitors, reset the link, associate, DHCP):
 
 ```bash
-iwctl station list                       # find the device name (usually wlan0)
-iwctl station wlan0 connect "YOUR_SSID"  # prompts for the password
-ping nixos.org                           # confirm you're online
+wifi-connect "YOUR_SSID" "YOUR_PASSWORD"   # add the interface as a 3rd arg if not wlp3s0
+ping nixos.org                             # confirm you're online
 ```
 
-(iwd is used instead of NetworkManager on purpose: NM gets stuck `unavailable`
-on the Air's `wl` card even though the radio works. iwd does not.)
-
-### If Wi-Fi still won't come up
+If it can't associate, run wpa_supplicant in the foreground to see the reason
+(wrong password vs handshake failure):
 
 ```bash
-rfkill list                           # make sure the radio isn't blocked
-sudo rfkill unblock all
-sudo iw dev wlan0 scan | grep SSID    # does the radio scan at all?
-air-try-brcmfmac                      # swap the Air's wl -> open brcmfmac driver
+sudo wpa_supplicant -i wlp3s0 -c /tmp/wpa.conf
 ```
 
-If the radio scans but `iwctl` won't connect, or nothing works, fall back to a
-USB-Ethernet adapter (the whole flake is on the ISO, so install works offline).
+If DHCP gives a `169.254.x.x` (no lease) but you're associated, set a static IP
+matching your network instead:
+
+```bash
+sudo ip addr add 10.0.0.200/24 dev wlp3s0
+sudo ip route add default via 10.0.0.1
+printf 'nameserver 1.1.1.1\n' | sudo tee /etc/resolv.conf
+```
+
+Worst case, a USB-Ethernet adapter sidesteps `wl` entirely (the whole flake is
+on the ISO, so install works offline).
 
 Partition, format, and mount. This **erases the disk**, so run `lsblk` first
 (the disk is often `/dev/sda` or `/dev/nvme0n1`):
@@ -231,18 +236,18 @@ The pool imports automatically on every boot (the host sets the required
 `networking.hostId`). Do this before `nixos-install` if you want `/data` mounted
 at first boot, or any time after.
 
-The whole flake is **already on the ISO** at `/etc/nixos-install/nixusb`, so no
-clone is needed (this also means the install works with no network). Copy it to
-the new system, then write this machine's hardware config into its host dir with
-the baked-in `nixusb-hwconfig` helper (it runs `nixos-generate-config
---show-hardware-config`, so it writes only the hardware file, filesystems
-included, and never a stray `configuration.nix`):
+The whole flake is **already on the ISO** (under `/iso/etc/nixos-install/nixusb`
+on the live system), so no clone is needed and the install works with no network.
+Two baked-in helpers do the rest:
+
+- `nixusb-stage` creates `/mnt/etc`, copies the flake to `/mnt/etc/nixos`, and
+  makes it writable (the ISO copy is read-only, which would block the next step).
+- `nixusb-hwconfig <host>` writes this machine's `hardware-configuration.nix`
+  into its host dir via `nixos-generate-config --show-hardware-config` (only the
+  hardware file, filesystems included, never a stray `configuration.nix`).
 
 ```bash
-# Copy the baked-in flake onto the target:
-cp -r /etc/nixos-install/nixusb /mnt/etc/nixos
-
-# Generate this machine's hardware config into the right host dir:
+nixusb-stage                     # copy the flake to /mnt/etc/nixos (writable)
 nixusb-hwconfig macbook-air      # or: nixusb-hwconfig xps-8300
 ```
 

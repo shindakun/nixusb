@@ -11,6 +11,10 @@
   services.desktopManager.gnome.enable = true;
   services.xserver.xkb.layout = "us";
 
+  # Drop GNOME Web (Epiphany): it breaks OAuth flows (e.g. claude /login). Use
+  # Firefox instead (installed in home/steve.nix, set as default browser there).
+  environment.gnome.excludePackages = [ pkgs.epiphany ];
+
   # ---- Audio (PipeWire) ------------------------------------------------
   services.pulseaudio.enable = false;
   services.pipewire = {
