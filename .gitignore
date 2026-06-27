@@ -1,0 +1,13 @@
+# Nix build output (dead symlink into the container store once it exits)
+/result
+result-*
+
+# Built ISO artifacts (large; rebuild with `make iso`)
+*.iso
+
+# Generated per-machine during install, NOT committed (each host makes its own)
+hosts/*/hardware-configuration.nix
+
+# macOS / editor cruft
+.DS_Store
+*.swp
