@@ -29,9 +29,14 @@ PODMAN_RUN = podman run --rm --privileged -v "$(CURDIR)":/work -w /work $(NIX_IM
 .PHONY: iso fmt lock machine clean help
 
 ## Build the installer ISO and copy it out to ./$(ISO_NAME).
+# Nix store files are read-only (0444); that mode follows the copy, so we remove
+# any prior ISO first and chmod the new one writable, otherwise the next build's
+# cp fails with "Permission denied".
 iso:
 	$(PODMAN_RUN) "$(NIX) build '$(ISO_ATTR)' \
+	  && rm -f /work/$(ISO_NAME) \
 	  && cp -vL result/iso/*.iso /work/$(ISO_NAME) \
+	  && chmod u+w /work/$(ISO_NAME) \
 	  && rm -f /work/result"
 	@echo "==> built ./$(ISO_NAME)"
 

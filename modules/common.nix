@@ -18,6 +18,10 @@
     options = "--delete-older-than 14d";
   };
 
+  # Adopt the safer 26.11 default now (don't force-import an unclean root pool).
+  # We don't use ZFS, but the option is in scope and warns until set explicitly.
+  boot.zfs.forceImportRoot = false;
+
   # ---- Networking ------------------------------------------------------
   networking.networkmanager.enable = true;
 

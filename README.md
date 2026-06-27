@@ -23,13 +23,14 @@ nixusb/
     common.nix                    # nix flakes, podman, user account, locale, base pkgs
     desktop.nix                   # GNOME, PipeWire, fonts
     hyprland.nix                  # Hyprland compositor (coexists with GNOME)
+    steam.nix                     # Steam + 32-bit graphics
   home/
     steve.nix                     # Home Manager: shared user env + Hyprland config
   hosts/
     macbook-air/configuration.nix # Air hardware: wl Wi-Fi, applesmc, trackpad, thermals
-    xps-8300/configuration.nix    # XPS hardware: nvidia, brcmsmac Wi-Fi
+    xps-8300/configuration.nix    # XPS hardware: nvidia, brcmsmac Wi-Fi, ZFS, Incus
   iso/
-    installer.nix                 # live USB (both Wi-Fi drivers)
+    installer.nix                 # live USB (both Wi-Fi drivers + diagnostics)
 ```
 
 Each host's `hardware-configuration.nix` is generated on that machine during
@@ -171,12 +172,29 @@ You land at a root shell on the live system.
 
 ## Step 4: Install (flake-based, the same flow on both machines)
 
-Join Wi-Fi:
+Join Wi-Fi. The ISO uses **iwd** (`iwctl`), which drives the `wl` card reliably
+and does its own DHCP, so this is normally all it takes:
 
 ```bash
-nmtui            # "Activate a connection", pick your SSID
-ping nixos.org   # confirm you're online
+iwctl station list                       # find the device name (usually wlan0)
+iwctl station wlan0 connect "YOUR_SSID"  # prompts for the password
+ping nixos.org                           # confirm you're online
 ```
+
+(iwd is used instead of NetworkManager on purpose: NM gets stuck `unavailable`
+on the Air's `wl` card even though the radio works. iwd does not.)
+
+### If Wi-Fi still won't come up
+
+```bash
+rfkill list                           # make sure the radio isn't blocked
+sudo rfkill unblock all
+sudo iw dev wlan0 scan | grep SSID    # does the radio scan at all?
+air-try-brcmfmac                      # swap the Air's wl -> open brcmfmac driver
+```
+
+If the radio scans but `iwctl` won't connect, or nothing works, fall back to a
+USB-Ethernet adapter (the whole flake is on the ISO, so install works offline).
 
 Partition, format, and mount. This **erases the disk**, so run `lsblk` first
 (the disk is often `/dev/sda` or `/dev/nvme0n1`):
@@ -196,22 +214,36 @@ mkdir -p /mnt/boot
 mount /dev/disk/by-label/BOOT /mnt/boot
 ```
 
-Get this flake onto the target and generate the machine's hardware config:
+**XPS only, the ZFS data pool.** The XPS root stays ext4 (above); its extra SSDs
+form a ZFS *data* pool (not root). The host config enables ZFS and auto-imports
+the pool, but the pool is created by hand so you can match the actual disks.
+`lsblk` / `ls /dev/disk/by-id/` to find them, then (example, a 2-disk mirror):
 
 ```bash
-# Clone the flake (or copy it from a second USB) to /mnt/etc/nixos:
-git clone https://github.com/shindakun/nixusb /mnt/etc/nixos
-# Generate hardware-configuration.nix for THIS machine into a temp dir:
-nixos-generate-config --root /mnt --dir /tmp/hwcfg
+zpool create -o ashift=12 -O compression=zstd -O mountpoint=/data \
+  tank mirror /dev/disk/by-id/<ssd-a> /dev/disk/by-id/<ssd-b>
+# 3+ disks with one-disk fault tolerance: swap `mirror ...` for `raidz <a> <b> <c>`.
+# Opt a dataset into auto-snapshots:
+zfs set com.sun:auto-snapshot=true tank
 ```
 
-Put the generated `hardware-configuration.nix` where the host expects it:
+The pool imports automatically on every boot (the host sets the required
+`networking.hostId`). Do this before `nixos-install` if you want `/data` mounted
+at first boot, or any time after.
+
+The whole flake is **already on the ISO** at `/etc/nixos-install/nixusb`, so no
+clone is needed (this also means the install works with no network). Copy it to
+the new system, then write this machine's hardware config into its host dir with
+the baked-in `nixusb-hwconfig` helper (it runs `nixos-generate-config
+--show-hardware-config`, so it writes only the hardware file, filesystems
+included, and never a stray `configuration.nix`):
 
 ```bash
-# MacBook Air:
-cp /tmp/hwcfg/hardware-configuration.nix /mnt/etc/nixos/hosts/macbook-air/
-# or XPS 8300:
-cp /tmp/hwcfg/hardware-configuration.nix /mnt/etc/nixos/hosts/xps-8300/
+# Copy the baked-in flake onto the target:
+cp -r /etc/nixos-install/nixusb /mnt/etc/nixos
+
+# Generate this machine's hardware config into the right host dir:
+nixusb-hwconfig macbook-air      # or: nixusb-hwconfig xps-8300
 ```
 
 Install the right host and reboot:
@@ -224,6 +256,10 @@ nixos-install --flake /mnt/etc/nixos#xps-8300
 
 reboot
 ```
+
+> Prefer to pull the latest from GitHub instead of the baked-in copy? If you
+> have working network, `git clone https://github.com/shindakun/nixusb
+> /mnt/etc/nixos` in place of the `cp` above.
 
 `nixos-install` prompts for a root password at the end. After reboot, log in
 and set steve's password: `passwd steve`.
@@ -241,9 +277,13 @@ From the shared modules and Home Manager:
 - **Desktop:** GNOME (GDM) and **Hyprland** both available; pick the session at
   login. Hyprland setup: waybar, wofi, mako, kitty, hyprpaper, hyprlock, grim/slurp.
 - **Shell:** zsh + oh-my-zsh (autosuggestions, syntax highlighting; git/direnv/
-  fzf/sudo plugins), steve's login shell.
-- **Dev:** git (+lfs), gh, direnv (+nix-direnv), claude-code, nodejs, ripgrep,
-  fd, bat, eza, jq, httpie, fzf, tmux, nil, nixpkgs-fmt, cmake, gcc, go, gnumake.
+  fzf/sudo plugins), zoxide, steve's login shell.
+- **Editors:** VS Code, Zed, neovim/vim.
+- **Browsers:** Firefox, Chromium.
+- **Dev:** git (+lfs), gh, lazygit, direnv (+nix-direnv), claude-code, nodejs,
+  ripgrep, fd, bat, eza, jq, yq-go, httpie, fzf, tmux, fastfetch, tealdeer,
+  p7zip, nil, nixpkgs-fmt, cmake, gcc, go, gnumake.
+- **Media:** mpv, imv.
 - **Containers:** Podman with docker-compat.
 - **Gaming:** Steam (with the 32-bit graphics stack and Remote Play firewall).
 - **Audio:** PipeWire. **Fonts:** Fira Code + Nerd Font variants, Linux Libertine.
@@ -253,7 +293,8 @@ Per machine:
 - **Air:** `wl` Wi-Fi, applesmc, FaceTime camera, trackpad (tap + natural scroll),
   thermald + TLP. Steam runs but the integrated Intel GPU limits it to light titles.
 - **XPS:** NVIDIA GTX 1060 (proprietary driver, modesetting on for Wayland),
-  `brcmsmac` Wi-Fi, **Incus** (system containers + VMs) alongside Podman, and the
+  `brcmsmac` Wi-Fi, **ZFS data pool** across its extra SSDs (ext4 root),
+  **Incus** (system containers + VMs) alongside Podman, key-only **SSH**, and the
   GPU that actually makes Steam worthwhile.
 
 ---

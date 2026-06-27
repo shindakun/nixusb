@@ -62,5 +62,28 @@
     settings.PermitRootLogin = "no";
   };
 
+  # ---- ZFS data pool ---------------------------------------------------
+  # The XPS has several SSDs. Root stays on ext4 (simple, no kernel-module risk
+  # at boot); the extra SSDs form a ZFS DATA pool, NOT the root. So this enables
+  # ZFS support but does not put the OS on it.
+  #
+  # The pool itself is created BY HAND once on the real hardware (the disk
+  # sizes/layout aren't known yet), e.g.:
+  #   zpool create -o ashift=12 -O compression=zstd -O mountpoint=/data \
+  #     tank mirror /dev/disk/by-id/<ssd-a> /dev/disk/by-id/<ssd-b>
+  # ZFS then imports it automatically on boot (hostId below makes that safe).
+  # ZFS is an out-of-tree module: it lags the newest kernels. The channel's
+  # default kernel is kept ZFS-compatible, so do NOT switch boot.kernelPackages
+  # to linuxPackages_latest here without checking ZFS supports it, or boot breaks.
+  boot.supportedFilesystems = [ "zfs" ];
+  # ZFS REQUIRES a unique 8-hex-char hostId; it refuses to import a pool without
+  # one. Generated for this machine; do not reuse it on another host.
+  networking.hostId = "72a21b30";
+  services.zfs = {
+    autoScrub.enable = true;             # monthly integrity scrub (repairs on redundant pools)
+    trim.enable = true;                  # periodic SSD trim of the pool
+    autoSnapshot.enable = true;          # rolling snapshots (frequent/hourly/daily/...)
+  };
+
   system.stateVersion = "26.05";
 }
