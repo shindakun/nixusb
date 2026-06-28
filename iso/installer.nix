@@ -1,12 +1,17 @@
-# Installer ISO: a live USB tuned for the MacBook Air (BCM4360 + proprietary
-# "wl" driver). This is the combination that actually got the Air online:
-# NetworkManager + wl + a FULL blacklist of the open Broadcom stack (bcma etc.)
-# so nothing competes with wl for the card.
+# Installer ISO that serves BOTH machines, by NOT picking a Wi-Fi driver at boot.
 #
-# Tradeoff: blacklisting bcma/brcmsmac/brcmfmac means the XPS's BCM4313 (which
-# needs brcmsmac) will NOT get Wi-Fi from this ISO. The XPS has Ethernet, so
-# install it wired (or build a separate XPS-tuned ISO later). The Air's working
-# install is the priority here.
+# The Air (BCM4360) needs the proprietary `wl` and the open Broadcom stack
+# (bcma/brcmsmac/brcmfmac) blacklisted; the XPS (DW1501 / BCM4313) needs exactly
+# that open stack (brcmsmac, which depends on bcma). Those two are irreconcilable
+# in a single boot-time blacklist (the Air wants bcma gone, the XPS needs it).
+#
+# Since a given machine only has ONE of these cards, we boot NEUTRAL (load
+# neither driver, blacklist nothing but b43) and let you pick per-machine with a
+# one-shot script:
+#   use-wl         -> on the MacBook Air  (loads wl, unloads the open stack)
+#   use-brcmsmac   -> on the XPS 8300     (loads brcmsmac, unloads wl)
+# then `wifi-connect "SSID" "PASS"` to associate. `b43` stays blacklisted because
+# it wrongly grabs the 4313 (brcmsmac is the right driver there).
 #
 # The whole flake rides along inside the image under /etc/nixos-install/nixusb,
 # so install works with no network (see the README).
@@ -19,19 +24,16 @@
     "${modulesPath}/installer/cd-dvd/installation-cd-minimal.nix"
   ];
 
-  # ---- Wi-Fi drivers for both cards ------------------------------------
+  # ---- Wi-Fi: neutral boot, driver chosen at runtime -------------------
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.permittedInsecurePackages = [
     "broadcom-sta-6.30.223.271-59-6.18.36"
   ];
-  # Air (BCM4360): proprietary wl. Blacklist the open Broadcom stack so it can't
-  # fight wl for the card: bcma in particular grabs the 4360 first and leaves the
-  # device half-broken (mislabeled eth0, cfg80211 errors). Blacklisting bcma was
-  # what made wl cleanly own the card and get an IP. This DOES disable the XPS's
-  # brcmsmac on this same ISO, accepted: the Air's working install comes first.
+  # Make `wl` AVAILABLE but do not auto-load it, and do not blacklist the open
+  # stack. Nothing competes at boot; `use-wl` / `use-brcmsmac` select per machine.
   boot.extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
-  boot.kernelModules = [ "wl" "applesmc" ];
-  boot.blacklistedKernelModules = [ "b43" "bcma" "brcmsmac" "brcmfmac" ];
+  boot.kernelModules = [ "applesmc" ]; # Air SMC; safe no-op on the XPS
+  boot.blacklistedKernelModules = [ "b43" ]; # only b43 (it mis-claims the 4313)
 
   hardware.enableRedistributableFirmware = true; # brcmsmac firmware for the 4313
 
@@ -71,6 +73,39 @@
 
     wpa_supplicant
     dhcpcd
+
+    # use-wl: select the proprietary `wl` driver for the Air's BCM4360. Unloads
+    # the open Broadcom stack (which otherwise grabs the card and breaks it),
+    # then loads wl. Run this FIRST on the Air, then `wifi-connect`.
+    (writeShellScriptBin "use-wl" ''
+      set -e
+      echo "==> switching to wl (MacBook Air / BCM4360)"
+      systemctl stop NetworkManager wpa_supplicant 2>/dev/null || true
+      modprobe -r brcmfmac brcmsmac bcma b43 wl 2>/dev/null || true
+      modprobe wl
+      sleep 2
+      echo "==> driver now bound:"
+      ${pkgs.pciutils}/bin/lspci -nnk -d 14e4: | grep -iE 'network|driver in use' || true
+      echo "==> next: wifi-connect \"SSID\" \"PASSWORD\""
+    '')
+
+    # use-brcmsmac: select the open `brcmsmac` driver for the XPS's BCM4313
+    # (DW1501). Unloads wl, loads brcmsmac (+ its bcma dependency). Run FIRST on
+    # the XPS. brcmsmac is in-kernel and maintained, so NetworkManager/nmtui
+    # usually work after this (no need for the wpa_supplicant dance), but
+    # `wifi-connect` works too.
+    (writeShellScriptBin "use-brcmsmac" ''
+      set -e
+      echo "==> switching to brcmsmac (XPS 8300 / BCM4313)"
+      systemctl stop wpa_supplicant 2>/dev/null || true
+      modprobe -r wl b43 2>/dev/null || true
+      modprobe brcmsmac
+      sleep 2
+      systemctl restart NetworkManager 2>/dev/null || true
+      echo "==> driver now bound:"
+      ${pkgs.pciutils}/bin/lspci -nnk -d 14e4: | grep -iE 'network|driver in use' || true
+      echo "==> next: try nmtui, or  wifi-connect \"SSID\" \"PASSWORD\""
+    '')
 
     # wifi-connect: the sequence that actually gets the Air's BCM4360 online.
     # NetworkManager/iwd/nmtui don't work on this wl card (broken cfg80211);

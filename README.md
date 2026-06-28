@@ -170,12 +170,23 @@ You land at a root shell on the live system.
 
 ---
 
-## Step 4: Install (flake-based, the same flow on both machines)
+## Step 4: Install (flake-based)
 
-Join Wi-Fi with the baked-in `wifi-connect` helper. The Air's `wl` driver does
-not work with NetworkManager/iwd/nmtui (broken cfg80211 on this kernel); plain
-`wpa_supplicant` + `dhcpcd` does, but only from a clean device state. The helper
-handles all of that (kill competitors, reset the link, associate, DHCP):
+**First pick the Wi-Fi driver for the machine you're on.** The ISO boots neutral
+(no Broadcom driver loaded) because the two machines need opposite setups; a
+one-shot script selects the right one:
+
+```bash
+use-wl          # MacBook Air (BCM4360)  -> proprietary wl
+# or
+use-brcmsmac    # XPS 8300 (DW1501/BCM4313) -> open brcmsmac
+```
+
+Then join Wi-Fi with `wifi-connect`. On the **Air**, NetworkManager/nmtui don't
+work (the `wl` driver has broken cfg80211 on this kernel), so `wifi-connect` uses
+`wpa_supplicant` + `dhcpcd` from a clean device state. On the **XPS**, the open
+`brcmsmac` driver usually works with plain `nmtui` too, but `wifi-connect` works
+on both:
 
 ```bash
 wifi-connect "YOUR_SSID" "YOUR_PASSWORD"   # add the interface as a 3rd arg if not wlp3s0

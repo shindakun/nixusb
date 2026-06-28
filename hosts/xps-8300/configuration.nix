@@ -1,7 +1,7 @@
 # Dell XPS 8300 (2011 Sandy Bridge desktop, NVIDIA GTX 1060 Pascal GPU).
 # Shared bits come from modules/ and home/ via flake.nix. This file is ONLY
-# the XPS-specific hardware. It has Ethernet, so no Wi-Fi driver hack and it
-# can install from the stock NixOS ISO.
+# the XPS-specific hardware. Networking is a Dell DW1501 (BCM4313) Wi-Fi card
+# (open brcmsmac driver); on the installer ISO run `use-brcmsmac` to select it.
 { config, lib, pkgs, ... }:
 
 {
