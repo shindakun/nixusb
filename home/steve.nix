@@ -65,10 +65,11 @@
   # A starter setup: kitty terminal, wofi launcher, waybar, mako notifications.
   wayland.windowManager.hyprland = {
     enable = true;
-    # Variables ($mod etc.) go in `variables`, which Home Manager emits FIRST,
-    # before any bind that references them. Putting them in `settings` could
-    # emit them after the binds, so Hyprland parses `$mod` before it's defined
-    # ("<name> expected near '$'"). SUPER is inlined in binds to be safe.
+    # Home Manager flips the config format to Lua when home.stateVersion >= 26.05.
+    # The Lua backend is buggy (mangles our settings into broken `hl.exec-once(...)`
+    # etc., "syntax error near '-'"). Force the classic hyprlang `.conf` format,
+    # which is what these `settings` are written for.
+    configType = "hyprlang";
     settings = {
       exec-once = [
         "waybar"
