@@ -33,12 +33,17 @@
   programs.zoxide.enable = true;
 
   # ---- git -------------------------------------------------------------
+  # ~/.gitconfig is a read-only symlink into /nix/store (Home Manager manages
+  # it), so `git config --global` fails. Put global git settings HERE instead.
   programs.git = {
     enable = true;
     lfs.enable = true;
     # Set your identity here once and both machines share it.
     settings.user.name = "steve";
     settings.user.email = "shindakun@users.noreply.github.com";
+    # Always talk to GitHub over SSH, even when a remote is an https URL.
+    # (Pushing still needs an SSH key registered on your GitHub account.)
+    settings.url."git@github.com:".insteadOf = "https://github.com/";
   };
 
   # ---- gh (GitHub CLI) -------------------------------------------------
