@@ -5,8 +5,10 @@ result-*
 # Built ISO artifacts (large; rebuild with `make iso`)
 *.iso
 
-# Generated per-machine during install, NOT committed (each host makes its own)
-hosts/*/hardware-configuration.nix
+# NOTE: hosts/*/hardware-configuration.nix is intentionally COMMITTED (not
+# ignored). Committing each machine's real hardware config means a fresh clone
+# is install-ready and `git pull` never wipes it. Generate a new host's once
+# with `nixos-generate-config --show-hardware-config` then commit it.
 
 # macOS / editor cruft
 .DS_Store
