@@ -56,6 +56,9 @@
       "x-scheme-handler/https" = "firefox.desktop";
     };
   };
+  # GNOME pre-creates ~/.config/mimeapps.list, which collides with the above and
+  # makes home-manager activation fail ("file is in the way"). Let HM overwrite it.
+  xdg.configFile."mimeapps.list".force = true;
 
   # ---- Hyprland (Wayland compositor) ----------------------------------
   # System enablement is in modules/hyprland.nix; this is the per-user config.
