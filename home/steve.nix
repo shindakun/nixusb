@@ -104,7 +104,10 @@
         "SUPER SHIFT, 2, movetoworkspace, 2"
         "SUPER SHIFT, 3, movetoworkspace, 3"
         "SUPER SHIFT, 4, movetoworkspace, 4"
-        ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
+        # Screenshot region to clipboard. Wrapped in `bash -c` so the shell
+        # handles the pipe/$()/dash, not Hyprland's bind parser (which errors
+        # on the bare `-`).
+        ", Print, exec, bash -c 'grim -g \"$(slurp)\" - | wl-copy'"
       ];
 
       bindm = [
