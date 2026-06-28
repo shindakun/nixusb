@@ -75,6 +75,10 @@
         "waybar"
         "mako"
         "hyprpaper"
+        # Clipboard: keep a persistent clipboard + history so copy/paste works
+        # between apps (Wayland has no clipboard daemon by default).
+        "wl-paste --type text --watch cliphist store"
+        "wl-paste --type image --watch cliphist store"
       ];
 
       monitor = ",preferred,auto,1"; # autodetect; tune per-display later
