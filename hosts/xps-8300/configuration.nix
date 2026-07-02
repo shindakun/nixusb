@@ -26,7 +26,8 @@
   # The BCM4313 uses the open in-kernel brcmsmac driver plus redistributable
   # firmware (enabled in modules/common.nix). b43 is blacklisted because it
   # would wrongly try to claim this chip.
-  boot.kernelModules = [ "brcmsmac" ];
+  # kvm-intel is here too so Incus VMs (e.g. Home Assistant OS) work; see below.
+  boot.kernelModules = [ "brcmsmac" "kvm-intel" ];
   boot.blacklistedKernelModules = [ "b43" "wl" ];
 
   # ---- NVIDIA GTX 1060 (Pascal) ----------------------------------------
@@ -52,6 +53,16 @@
   users.users.steve.extraGroups = [ "incus-admin" ];
   # Incus needs its bridge allowed through the firewall for instance networking.
   networking.firewall.trustedInterfaces = [ "incusbr0" ];
+  # Incus VMs (as opposed to system containers) need KVM. The Intel CPU provides
+  # it; load the module so `incus launch --vm` works. This is what lets us run
+  # Home Assistant OS (HAOS) as a full VM appliance, e.g.:
+  #   incus init haos --empty --vm -c limits.cpu=2 -c limits.memory=4GiB
+  #   incus config device add haos root disk pool=<pool> size=32GiB   # on ZFS pool
+  #   # import the HAOS .qcow2 image, then start it.
+  # For HA device discovery/mDNS you'll usually want the VM BRIDGED onto the LAN
+  # (a macvlan/bridged Incus profile), not NATed behind incusbr0. That's a
+  # runtime `incus profile`/`incus config device` choice, not declared here.
+  # (kvm-intel is loaded in the Wi-Fi block's boot.kernelModules above.)
 
   # ---- SSH -------------------------------------------------------------
   # The XPS is a desktop you may want to reach headless from the Air. Keep it
@@ -61,6 +72,58 @@
     settings.PasswordAuthentication = false;
     settings.PermitRootLogin = "no";
   };
+
+  # ---- Monitoring: Prometheus + Grafana --------------------------------
+  # node exporter (CPU/RAM/disk/temps) scraped by Prometheus; Grafana on :3000
+  # to visualize. Reachable from the Air over the LAN (see firewall below).
+  services.prometheus = {
+    enable = true;
+    exporters.node = {
+      enable = true;
+      enabledCollectors = [ "systemd" ];
+      # defaults to :9100
+    };
+    scrapeConfigs = [
+      {
+        job_name = "node";
+        static_configs = [{ targets = [ "localhost:9100" ]; }];
+      }
+      # Incus exposes metrics at https://localhost:8443/1.0/metrics, but the
+      # scrape needs a client cert trusted by Incus, which only exists after you
+      # set it up on the running box:
+      #   incus config trust add-certificate <prometheus-client.crt> --type metrics
+      # Uncomment and point tls_config at the generated cert/key once created:
+      # {
+      #   job_name = "incus";
+      #   metrics_path = "/1.0/metrics";
+      #   scheme = "https";
+      #   static_configs = [{ targets = [ "localhost:8443" ]; }];
+      #   tls_config = {
+      #     ca_file = "/var/lib/incus/server.crt";
+      #     cert_file = "/var/lib/prometheus/incus-metrics.crt";
+      #     key_file = "/var/lib/prometheus/incus-metrics.key";
+      #   };
+      # }
+    ];
+  };
+  services.grafana = {
+    enable = true;
+    settings.server = {
+      http_addr = "0.0.0.0"; # reachable from the Air; drop to 127.0.0.1 for local-only
+      http_port = 3000;
+    };
+    # Grafana 26.05 requires an explicit secret_key (encrypts secrets in its DB).
+    # Do NOT hard-code it in this public repo: read it from a file created ONCE on
+    # the box (not tracked by git):
+    #   sudo install -d -o grafana -g grafana /var/lib/grafana
+    #   openssl rand -hex 32 | sudo tee /var/lib/grafana/secret_key >/dev/null
+    #   sudo chown grafana:grafana /var/lib/grafana/secret_key
+    #   sudo chmod 600 /var/lib/grafana/secret_key
+    settings.security.secret_key = "$__file{/var/lib/grafana/secret_key}";
+  };
+  # Open Grafana (3000) on the LAN. Prometheus (9090) and node exporter (9100)
+  # stay local unless you also want to reach them directly.
+  networking.firewall.allowedTCPPorts = [ 3000 ];
 
   # ---- ZFS data pool ---------------------------------------------------
   # The XPS has several SSDs. Root stays on ext4 (simple, no kernel-module risk
