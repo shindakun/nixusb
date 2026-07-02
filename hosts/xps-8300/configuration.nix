@@ -121,8 +121,23 @@
     #   sudo chmod 600 /var/lib/grafana/secret_key
     settings.security.secret_key = "$__file{/var/lib/grafana/secret_key}";
   };
+  # ---- Jellyfin (media server) -----------------------------------------
+  # Native service (not a container): simplest on NixOS and GPU transcoding
+  # works via the host NVIDIA driver, no passthrough. Web UI on :8096.
+  # NVENC hardware transcoding: enable it in the Jellyfin web UI
+  # (Dashboard -> Playback -> Hardware acceleration = NVENC). The nvidia driver
+  # (services.xserver.videoDrivers = ["nvidia"], set above) provides it.
+  # Media lives on the ZFS pool; the `jellyfin` service user needs read access
+  # to wherever you put it (e.g. put media under a dir the jellyfin user can read,
+  # or add jellyfin to a media group). That's a runtime step after the pool exists.
+  services.jellyfin = {
+    enable = true;
+    openFirewall = true; # opens 8096/8920 (http/https) + DLNA discovery ports
+  };
+
   # Open Grafana (3000) on the LAN. Prometheus (9090) and node exporter (9100)
-  # stay local unless you also want to reach them directly.
+  # stay local unless you also want to reach them directly. (Jellyfin's ports
+  # are opened by services.jellyfin.openFirewall above.)
   networking.firewall.allowedTCPPorts = [ 3000 ];
 
   # ---- ZFS data pool ---------------------------------------------------
