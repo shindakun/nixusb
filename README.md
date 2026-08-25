@@ -13,7 +13,7 @@ Repo: <https://github.com/shindakun/nixusb>
 
 ```text
 airnix/
-  Makefile        # dispatcher -> nix/Makefile and arch/Makefile
+  Makefile        # dispatcher: nix-* -> nix/, arch-* -> arch/
   nix/            # the NixOS flake (GNOME + Hyprland)
   arch/           # the Arch setup (niri)
 ```
@@ -111,15 +111,23 @@ macOS only builds Darwin packages. On an Intel Mac the container is x86_64, so
 it builds natively.
 
 ```bash
-make machine    # one-time: create/resize the Podman machine (6 GiB / 60 GiB)
-make iso        # build ./nix/nixusb-installer.iso
+make nix-machine    # one-time: create/resize the Podman machine (6 GiB / 60 GiB)
+make nix-iso        # build ./nix/nixusb-installer.iso
 ```
 
-Run these from the repo root (the root `Makefile` forwards to `nix/`) or from
-inside `nix/`. Targets: `iso`, `fmt`, `lock`, `machine`, `clean`.
+At the repo root every target is prefixed with the side it belongs to
+(`nix-iso`, `arch-iso`), so neither OS is the implicit default. Nix targets:
+`nix-iso`, `nix-fmt`, `nix-lock`, `nix-machine`, `nix-clean`.
 
-`make help` at the root lists every target on both sides. Arch targets are
-prefixed `arch-` there, because both sides define `iso` and `clean`.
+Inside `nix/` the targets are unprefixed, since there the side is unambiguous:
+
+```bash
+cd nix && make iso
+```
+
+`make help` at the root lists every target on both sides. Running a bare
+ambiguous name at the root (`make iso`) refuses and tells you the two prefixed
+forms rather than guessing a side.
 
 Flashing is deliberately **not** a make target so a stray `make` cannot `dd`
 over a disk. See "Flashing" below.
@@ -233,7 +241,8 @@ make arch-iso-podman
 
 Either writes `arch/iso/out/airnix-arch-<date>.iso`. Both run
 `arch/iso/build.sh`, which you can also call directly with `sudo ./iso/build.sh`
-from `arch/`.
+from `arch/`. Inside `arch/` the targets are unprefixed (`make iso`,
+`make iso-podman`, `make check`, `make clean`).
 
 Before building, `make arch-check` syntax-checks every script, confirms the
 package lists are non-empty, validates the waybar JSON, and runs
