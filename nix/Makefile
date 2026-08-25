@@ -65,5 +65,9 @@ clean:
 	rm -f $(ISO_NAME)
 
 ## List targets.
+# Pairs each `## text` with the next target line. The old `grep -B1` version
+# printed every description against the WRONG target (off by one).
 help:
-	@grep -B1 -E '^[a-z].*:' Makefile | grep -E '^##|^[a-z]' | sed 's/^## /  /'
+	@awk '/^## /{d=substr($$0,4); next} \
+	      /^[a-z][a-z0-9-]*:/{if(d){split($$0,a,":"); printf "  %-10s %s\n", a[1], d; d=""}} \
+	      /^[^#]/{if($$0 !~ /^[a-z]/) d=""}' Makefile

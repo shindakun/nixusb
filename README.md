@@ -13,7 +13,7 @@ Repo: <https://github.com/shindakun/nixusb>
 
 ```text
 airnix/
-  Makefile        # dispatcher -> nix/Makefile (so `make iso` works from the root)
+  Makefile        # dispatcher -> nix/Makefile and arch/Makefile
   nix/            # the NixOS flake (GNOME + Hyprland)
   arch/           # the Arch setup (niri)
 ```
@@ -116,7 +116,10 @@ make iso        # build ./nix/nixusb-installer.iso
 ```
 
 Run these from the repo root (the root `Makefile` forwards to `nix/`) or from
-inside `nix/`. Targets: `iso`, `fmt`, `lock`, `machine`, `clean`, `help`.
+inside `nix/`. Targets: `iso`, `fmt`, `lock`, `machine`, `clean`.
+
+`make help` at the root lists every target on both sides. Arch targets are
+prefixed `arch-` there, because both sides define `iso` and `clean`.
 
 Flashing is deliberately **not** a make target so a stray `make` cannot `dd`
 over a disk. See "Flashing" below.
@@ -195,6 +198,7 @@ two sides stay comparable.
 
 ```text
 arch/
+  Makefile          # check / iso / iso-podman / clean
   packages/
     base.txt          # shared: shell, dev tools, PipeWire, fonts, podman
     niri.txt          # niri + waybar, fuzzel, mako, swaylock, greetd
@@ -216,13 +220,25 @@ arch/
 
 ## Build the ISO
 
-`archiso` needs an Arch host; it does not run on macOS. Use an existing Arch
-box, an `archlinux:latest` Podman container, or the XPS once it runs Arch.
+`archiso` needs an Arch host; it does not run on macOS, because it drives
+pacman/pacstrap against the live Arch package DB. Two ways to build:
 
 ```bash
-sudo pacman -S archiso
-cd arch/iso && sudo ./build.sh    # writes out/airnix-arch-<date>.iso
+# On an Arch host (the XPS, once it runs Arch):
+make arch-iso
+
+# From macOS, building inside an archlinux:latest container:
+make arch-iso-podman
 ```
+
+Either writes `arch/iso/out/airnix-arch-<date>.iso`. Both run
+`arch/iso/build.sh`, which you can also call directly with `sudo ./iso/build.sh`
+from `arch/`.
+
+Before building, `make arch-check` syntax-checks every script, confirms the
+package lists are non-empty, validates the waybar JSON, and runs
+`niri validate` on the config if niri is installed. It is the default target,
+so a bare `make` inside `arch/` runs it.
 
 This bakes in `broadcom-wl-dkms`, `linux-lts`, the `use-wl` / `use-brcmsmac` /
 `wifi-connect` helpers, and the whole repo at `/root/airnix`. The stock Arch ISO
