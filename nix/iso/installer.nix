@@ -198,6 +198,10 @@
   # configs import shared modules and home/steve.nix, so a single file is
   # useless on its own; the entire tree has to ride along. This also means you
   # can install with NO network:
+  #
+  # `src = ../.` is the FLAKE root (repo/nix/), not the repo root, so the
+  # sibling arch/ tree is naturally excluded: the ISO carries only Nix.
+  #
   #   nixos-install --flake /etc/nixos-install/nixusb#macbook-air
   # (after dropping the generated hardware-configuration.nix into hosts/<name>/).
   #

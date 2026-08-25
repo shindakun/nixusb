@@ -1,0 +1,47 @@
+# Niri (scrollable-tiling Wayland compositor) + its toolkit.
+# Install:  pacman -S --needed - < niri.txt
+#
+# Unlike Hyprland, niri does NOT embed XWayland. X11 apps need
+# xwayland-satellite, which the session file starts for you.
+
+niri
+xwayland-satellite
+
+# ---- session / portals ----
+xdg-desktop-portal
+xdg-desktop-portal-gtk
+xdg-desktop-portal-gnome
+polkit-gnome
+gnome-keyring
+
+# ---- bar / launcher / notifications ----
+waybar
+fuzzel
+mako
+libnotify
+
+# ---- lock / idle / wallpaper ----
+swaylock
+swayidle
+swaybg
+
+# ---- terminal ----
+alacritty
+kitty
+
+# ---- screenshots / clipboard ----
+grim
+slurp
+wl-clipboard
+swappy
+
+# ---- display manager ----
+# greetd + tuigreet: light, works cleanly with Wayland sessions.
+greetd
+greetd-tuigreet
+
+# ---- file manager / misc GUI ----
+nautilus
+brightnessctl
+playerctl
+network-manager-applet

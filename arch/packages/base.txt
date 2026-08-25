@@ -1,0 +1,101 @@
+# Shared base packages, both machines. Repo packages only (no AUR).
+# Install:  pacman -S --needed - < base.txt
+# Lines starting with # and blank lines are ignored by the install scripts.
+
+# ---- base system ----
+base
+base-devel
+linux-firmware
+sudo
+networkmanager
+openssh
+man-db
+man-pages
+
+# ---- kernels --------------------------------------------------------
+# linux-lts is the DEFAULT boot kernel on the Air (broadcom-wl needs it).
+# The XPS boots plain `linux`. Both are installed on both machines so there
+# is always a fallback entry in the boot menu.
+linux
+linux-headers
+linux-lts
+linux-headers-lts
+
+# ---- shell ----
+zsh
+zsh-autosuggestions
+zsh-syntax-highlighting
+zoxide
+fzf
+tmux
+
+# ---- editors ----
+neovim
+vim
+
+# ---- dev ----
+git
+git-lfs
+github-cli
+lazygit
+direnv
+nodejs
+npm
+go
+gcc
+cmake
+make
+python
+python-pip
+
+# ---- cli tools ----
+ripgrep
+fd
+bat
+eza
+jq
+yq
+httpie
+wget
+curl
+htop
+btop
+tree
+rsync
+p7zip
+file
+tealdeer
+fastfetch
+parted
+gptfdisk
+pciutils
+usbutils
+
+# ---- audio (PipeWire) ----
+pipewire
+pipewire-alsa
+pipewire-pulse
+pipewire-jack
+wireplumber
+pavucontrol
+
+# ---- fonts ----
+ttf-fira-code
+ttf-firacode-nerd
+ttf-jetbrains-mono-nerd
+ttf-droid-sans-mono-nerd
+noto-fonts
+noto-fonts-emoji
+
+# ---- media ----
+mpv
+imv
+
+# ---- browsers ----
+firefox
+chromium
+
+# ---- containers ----
+podman
+podman-docker
+buildah

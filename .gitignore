@@ -13,3 +13,8 @@ result-*
 # macOS / editor cruft
 .DS_Store
 *.swp
+
+# archiso build artifacts (arch/iso/build.sh)
+arch/iso/work/
+arch/iso/out/
+arch/iso/profile/

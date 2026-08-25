@@ -1,0 +1,30 @@
+# MacBook Air (Intel, BCM4360 Wi-Fi) specific packages.
+# Install:  pacman -S --needed - < macbook-air.txt
+#
+# IMPORTANT: broadcom-wl-dkms is built against EVERY installed kernel. Pair it
+# with linux-lts and boot linux-lts (see arch/install/README or the root
+# README): on current mainline kernels this driver's cfg80211 support breaks,
+# which is exactly the failure that made NetworkManager unusable under NixOS.
+
+# ---- Wi-Fi: BCM4360 ----
+broadcom-wl-dkms
+dkms
+
+# ---- graphics: Intel HD 5000/6000 (Haswell/Broadwell) ----
+mesa
+vulkan-intel
+intel-media-driver
+libva-utils
+
+# ---- laptop power / thermals ----
+tlp
+thermald
+powertop
+acpi
+
+# ---- Apple hardware ----
+# mbpfan: fan control via applesmc (old Airs run hot).
+mbpfan
+
+# ---- touchpad ----
+libinput

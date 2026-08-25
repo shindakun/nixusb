@@ -1,24 +1,92 @@
-# nixusb: multi-host NixOS flake (MacBook Air + Dell XPS 8300)
+# airnix
 
-A single flake that configures two machines and builds one **installer ISO**
-that can get online over Wi-Fi on both of them.
+Two machines, two ways to build them. This repo holds a **NixOS** flake and a
+parallel **Arch Linux** setup for the same pair of computers, so either OS can
+be installed on either machine without re-deriving the hardware quirks.
 
 Repo: <https://github.com/shindakun/nixusb>
 
-- **MacBook Air** (older Intel, BCM4360 Wi-Fi): needs the proprietary Broadcom
-  `wl` driver, Apple SMC (fans/temps/backlight), laptop power tuning.
-- **Dell XPS 8300** (Sandy Bridge desktop, NVIDIA GTX 1060, Dell DW1501 /
-  BCM4313 Wi-Fi): NVIDIA proprietary driver, open `brcmsmac` Wi-Fi.
-
-Shared user environment (zsh + oh-my-zsh, git, dev tools, fonts, Hyprland) is
-written once in Home Manager and used by both machines.
-
-## Layout
+| Machine | Hardware | Wi-Fi chip | Driver |
+| --- | --- | --- | --- |
+| **MacBook Air** (6,x / 7,x) | Intel Haswell/Broadwell, Intel HD graphics | BCM4360 | proprietary `wl` (broadcom-sta / broadcom-wl) |
+| **Dell XPS 8300** | 2011 Sandy Bridge, NVIDIA GTX 1060, several SSDs | BCM4313 (DW1501) | open in-kernel `brcmsmac` |
 
 ```text
-nixusb/
+airnix/
+  Makefile        # dispatcher -> nix/Makefile (so `make iso` works from the root)
+  nix/            # the NixOS flake (GNOME + Hyprland)
+  arch/           # the Arch setup (niri)
+```
+
+The NixOS side is **installed and working on the Air**. The Arch side is
+**written but not yet installed**; nothing in `arch/` has been run on real
+hardware yet, so treat it as a tested-by-reading plan, not a proven install.
+
+---
+
+## The Wi-Fi problem (read this first)
+
+This is the single hardest thing about both machines, and it drives most of the
+design on both sides.
+
+**The MacBook Air's BCM4360 has no good driver.** The only one that works is
+Broadcom's abandoned proprietary blob (`broadcom-sta`, last released 2016). On
+recent kernels its cfg80211 support is broken, which produces errors like
+`wl_cfg80211_get_tx_power` and `wl_notify_scan_status`. The practical fallout:
+
+- NetworkManager (`nmtui`), iwd (`iwctl`), and `wpa_supplicant -Dwext` **all fail**.
+  NM and iwd need cfg80211 and get stuck `unavailable`, or the device shows up
+  mislabeled as `eth0`.
+- `brcmfmac` does **not** bind the 4360 without firmware neither distro ships.
+  Switching to it is a dead end.
+- What works is plain `wpa_supplicant` (no `-D` flag) plus `dhcpcd`, and **only
+  from a clean device state**: a stale wpa_supplicant, NetworkManager, or iwd
+  holding the card makes it fail.
+- The open Broadcom stack must be blacklisted (`bcma`, `brcmsmac`, `brcmfmac`,
+  `b43`) so `wl` owns the card. Otherwise `bcma` grabs it first.
+- Do **not** over-specify `wpa.conf`. Bare `wpa_passphrase` output auto-negotiates
+  and works; forcing `key_mgmt`/`proto`/`ieee80211w` broke association.
+
+**The XPS's BCM4313 is fine.** `brcmsmac` is in-kernel and maintained, so
+NetworkManager works normally. It only needs `b43` blacklisted, since `b43`
+wrongly tries to claim the chip.
+
+Because the two machines need *opposite* Broadcom setups (the Air needs `bcma`
+gone, the XPS needs it loaded), **neither installer ISO can pick a driver at
+boot**. Both ISOs boot neutral and give you a one-shot selector:
+
+```bash
+use-wl          # MacBook Air (BCM4360)
+use-brcmsmac    # XPS 8300 (BCM4313)
+```
+
+### The Arch side has a fix the Nix side does not (yet)
+
+On Arch, `linux-lts` is a first-class one-command install, and pairing it with
+`broadcom-wl-dkms` is the standard fix: on an LTS kernel the driver's cfg80211
+support is intact, so NetworkManager and `nmtui` behave normally and the
+`wpa_supplicant` dance is unnecessary. `arch/install/chroot-setup.sh` therefore
+makes **`linux-lts` the default boot entry on the Air** and keeps plain `linux`
+as a fallback menu entry.
+
+The same fix is available on NixOS by pinning `boot.kernelPackages`; it just
+has not been done yet. Caveat: the LTS pairing is the widely-reported working
+combination, but it has **not** been booted on this specific Air, so treat it as
+the strong candidate fix rather than a confirmed one.
+
+---
+
+# NixOS (`nix/`)
+
+A single flake configuring both machines plus one installer ISO. Shared user
+environment (zsh, git, dev tools, fonts, Hyprland) is written once in Home
+Manager and used by both hosts.
+
+```text
+nix/
   flake.nix                       # 2 hosts + the installer ISO, wires Home Manager
-  flake.lock                      # pinned inputs (regenerated on first build; keep it)
+  flake.lock                      # pinned inputs
+  Makefile                        # Podman-based ISO build
   modules/
     common.nix                    # nix flakes, podman, user account, locale, base pkgs
     desktop.nix                   # GNOME, PipeWire, fonts
@@ -27,316 +95,264 @@ nixusb/
   home/
     steve.nix                     # Home Manager: shared user env + Hyprland config
   hosts/
-    macbook-air/configuration.nix # Air hardware: wl Wi-Fi, applesmc, trackpad, thermals
-    xps-8300/configuration.nix    # XPS hardware: nvidia, brcmsmac Wi-Fi, ZFS, Incus
+    macbook-air/                  # wl Wi-Fi, applesmc, trackpad, thermals (+ real hardware config)
+    xps-8300/                     # nvidia, brcmsmac Wi-Fi, ZFS, Incus, Grafana, Jellyfin
   iso/
     installer.nix                 # live USB (both Wi-Fi drivers + diagnostics)
 ```
 
-Each host's `hardware-configuration.nix` is generated on that machine during
-install (see below) and dropped into its `hosts/<name>/` directory.
+Each host's `hardware-configuration.nix` is generated on that machine at install
+time. The Air's real one is **committed**, so a fresh clone is install-ready.
 
----
+## Build the ISO
 
-## Step 0: the Wi-Fi situation (why the custom ISO exists)
-
-The stock NixOS ISO can't join Wi-Fi on either machine out of the box:
-
-| Machine | Wi-Fi chip | Driver |
-| --- | --- | --- |
-| MacBook Air (6,x / 7,x) | BCM4360 | proprietary `wl` (broadcom_sta) |
-| XPS 8300 (DW1501) | BCM4313 | open `brcmsmac` + firmware |
-
-The installer ISO loads `wl` for the Air's 4360 and keeps `brcmsmac` available
-for the XPS's 4313. Each driver binds only its own card by PCI id, so one ISO
-serves both. `b43` is blacklisted (it would wrongly grab the 4313).
-
-> Note on `wl`: nixpkgs flags `broadcom_sta` as insecure (CVE-2019-9501/9502),
-> an unmaintained proprietary driver. It's the only option for the BCM4360, so
-> the config permits it via `nixpkgs.config.permittedInsecurePackages`. Low
-> practical risk on trusted networks. The XPS's `brcmsmac` is open and in-kernel,
-> no such caveat.
->
-> If a kernel bump changes the `broadcom-sta` version suffix, the build fails
-> with the exact new string; paste it into the `permittedInsecurePackages` lists
-> in `iso/installer.nix` and `hosts/macbook-air/configuration.nix`.
-
----
-
-## Step 1: Build the installer ISO
-
-A NixOS ISO is a Linux artifact and Nix on macOS only builds Darwin packages,
-so the build runs inside a Linux container via **Podman**. On an Intel Mac that
-container is x86_64, so it builds the x86_64 ISO natively.
-
-One-time Podman setup:
-
-```bash
-brew install podman
-podman machine init --cpus 4 --memory 6144 --disk-size 60
-podman machine start
-podman machine ssh uname -m            # expect: x86_64
-```
-
-`--memory 6144` and `--disk-size 60` matter: the build writes ~15-20 GB and is
-memory-hungry. Resize an existing machine without recreating it:
-`podman machine stop && podman machine set --memory 6144 && podman machine start`.
-
-Build it. The `Makefile` wraps the Podman incantation:
+The build runs in Podman because a NixOS ISO is a Linux artifact and Nix on
+macOS only builds Darwin packages. On an Intel Mac the container is x86_64, so
+it builds natively.
 
 ```bash
 make machine    # one-time: create/resize the Podman machine (6 GiB / 60 GiB)
-make iso        # build the ISO into ./nixusb-installer.iso
+make iso        # build ./nix/nixusb-installer.iso
 ```
 
-All `make` targets:
+Run these from the repo root (the root `Makefile` forwards to `nix/`) or from
+inside `nix/`. Targets: `iso`, `fmt`, `lock`, `machine`, `clean`, `help`.
 
-| Target | What it does |
-| --- | --- |
-| `make iso` | Build the ISO into `./nixusb-installer.iso` (default target). |
-| `make lock` | (Re)generate `flake.lock` without building. |
-| `make machine` | One-time: create or resize the Podman machine to 6 GiB / 60 GiB. |
-| `make clean` | Remove the built ISO. |
-| `make help` | List the targets. |
+Flashing is deliberately **not** a make target so a stray `make` cannot `dd`
+over a disk. See "Flashing" below.
 
-Flashing is intentionally not a `make` target, so a stray `make` can't `dd`
-over a disk; flash manually (Step 2).
-
-Or run the underlying build command directly (from the folder with `flake.nix`):
-
-```bash
-podman run --rm --privileged \
-  -v "$PWD":/work -w /work \
-  docker.io/nixos/nix:latest \
-  sh -c "nix --extra-experimental-features 'nix-command flakes' \
-            build '.#nixosConfigurations.installer.config.system.build.isoImage' \
-         && cp -vL result/iso/*.iso /work/nixusb-installer.iso \
-         && rm -f /work/result"
-```
-
-When done you'll have **`nixusb-installer.iso`** (~1.4 GB) in the
-folder. The trailing `cp` is essential: inside the container the ISO lands in
-`/nix/store`, which disappears when the container exits, so the `result` symlink
-would be dead from the Mac's side. Copying the real file out is what leaves a
-usable ISO.
+`--memory 6144` and `--disk-size 60` matter: the build writes ~15-20 GB.
 
 ### Build troubleshooting
 
 - **Sandbox error** (`could not set up a private mount namespace`): append
-  `--option sandbox false` to the `nix ... build` part.
-- **Out of space / killed:** machine too small. `podman machine stop`, then
-  `podman machine set --memory 6144 --disk-size 60`, `podman machine start`.
-- **`broadcom-sta ... is marked as insecure`:** version string drifted; see the
-  note in Step 0.
-- **Apple Silicon Mac:** can't build x86_64 natively. Build on a real x86 Linux
-  box, or emulate (slow): register with
-  `podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes`
-  and add `--platform linux/amd64 ... --option filter-syscalls false`.
+  `--option sandbox false` to the `nix build` command.
+- **Out of space / killed:** `podman machine stop && podman machine set --memory 6144 --disk-size 60 && podman machine start`.
+- **`broadcom-sta ... is marked as insecure`:** the version string drifted with a
+  kernel bump. The error prints the new string; paste it into the
+  `permittedInsecurePackages` lists in **both** `nix/iso/installer.nix` and
+  `nix/hosts/macbook-air/configuration.nix`.
+- **Apple Silicon Mac:** cannot build x86_64 natively. Build on an x86 Linux box,
+  or emulate (slow) with `multiarch/qemu-user-static` plus `--platform linux/amd64`.
+
+## Install
+
+Boot the USB (Air: hold **Option** at power-on, pick EFI Boot. XPS: tap **F12**),
+then:
+
+```bash
+use-wl                                     # or use-brcmsmac on the XPS
+wifi-connect "YOUR_SSID" "YOUR_PASSWORD"   # 3rd arg = interface, defaults wlp3s0
+ping nixos.org
+```
+
+Partition, format, and mount at `/mnt` (this **erases the disk**, run `lsblk`
+first), then use the baked-in helpers:
+
+```bash
+nixusb-stage                     # copy the flake to /mnt/etc/nixos (writable)
+nixusb-hwconfig macbook-air      # or: nixusb-hwconfig xps-8300
+nixos-install --flake /mnt/etc/nixos#macbook-air
+reboot
+```
+
+The whole flake rides along inside the ISO at `/iso/etc/nixos-install/nixusb`
+(note the `/iso` prefix on the live system), so install works with no network.
+After reboot, `passwd steve`.
+
+> The Air's FaceTime camera fetches firmware at build time, so stay online for
+> `nixos-install`.
+
+## Day-to-day
+
+On the Air the working copy is **`~/nixusb`** (owned by steve, so git needs no
+sudo). Do not use `/etc/nixos`: a root-owned clone causes endless git
+read-only/lock errors.
+
+```bash
+sudo nixos-rebuild switch --flake ~/nixusb#macbook-air   # or #xps-8300
+nix flake update ~/nixusb
+```
+
+Because the flake now lives in a subdirectory, a flake ref pointing at the repo
+root needs the subdir: `github:shindakun/nixusb?dir=nix#macbook-air`.
+
+> **Hyprland gotcha:** Home Manager switches to a buggy Lua config backend when
+> `home.stateVersion >= 26.05` (emits broken `hl.exec-once(...)`, writes
+> `hyprland.lua` instead of `.conf`). The fix, already applied, is
+> `wayland.windowManager.hyprland.configType = "hyprlang"`. Also, `~/.config/hypr/*`
+> are read-only symlinks into `/nix/store`: never edit them, edit
+> `nix/home/steve.nix` and rebuild. A running Hyprland session does not reload
+> config; log out and back in.
 
 ---
 
-## Step 2: Flash the ISO to a USB stick
+# Arch Linux (`arch/`)
 
-**Don't use Ventoy on Macs** (boot problems on Apple EFI). Use `dd`.
+The same two machines with **niri**, a scrollable-tiling Wayland compositor,
+instead of GNOME/Hyprland. Package lists are derived from the Nix config so the
+two sides stay comparable.
+
+```text
+arch/
+  packages/
+    base.txt          # shared: shell, dev tools, PipeWire, fonts, podman
+    niri.txt          # niri + waybar, fuzzel, mako, swaylock, greetd
+    macbook-air.txt   # broadcom-wl-dkms, Intel mesa, tlp, thermald, mbpfan
+    xps-8300.txt      # nvidia, incus, prometheus, grafana, jellyfin
+  install/
+    install.sh        # pacstrap + fstab + chroot, run from the live ISO
+    chroot-setup.sh   # locale, user, modprobe blacklists, bootloader (called by install.sh)
+    dotfiles.sh       # place dotfiles into ~/.config (run as your user, post-boot)
+    wifi-connect.sh   # the BCM4360 fallback sequence, ported from the NixOS ISO
+  dotfiles/
+    niri/config.kdl   # keybinds mirroring the Hyprland setup
+    waybar/           # bar config + theme
+    zsh/zshrc         # matches the oh-my-zsh setup from home/steve.nix
+  iso/
+    build.sh          # archiso ISO with broadcom-wl + helpers baked in
+    README.md
+```
+
+## Build the ISO
+
+`archiso` needs an Arch host; it does not run on macOS. Use an existing Arch
+box, an `archlinux:latest` Podman container, or the XPS once it runs Arch.
+
+```bash
+sudo pacman -S archiso
+cd arch/iso && sudo ./build.sh    # writes out/airnix-arch-<date>.iso
+```
+
+This bakes in `broadcom-wl-dkms`, `linux-lts`, the `use-wl` / `use-brcmsmac` /
+`wifi-connect` helpers, and the whole repo at `/root/airnix`. The stock Arch ISO
+works fine on the XPS, but cannot get the Air online, which is why this exists.
+
+## Install
+
+Boot the USB, pick the Wi-Fi driver, get online:
+
+```bash
+use-wl                          # or use-brcmsmac on the XPS
+nmtui                           # should work on the LTS kernel
+# fallback if the card misbehaves:
+wifi-connect "YOUR_SSID" "YOUR_PASSWORD"
+```
+
+Partition, format, and mount at `/mnt` **by hand** (the script deliberately does
+not do this). UEFI layout, matching what the NixOS side uses:
+
+```bash
+lsblk                                    # confirm the target disk first
+parted /dev/sdX -- mklabel gpt
+parted /dev/sdX -- mkpart ESP fat32 1MiB 512MiB
+parted /dev/sdX -- set 1 esp on
+parted /dev/sdX -- mkpart primary 512MiB 100%
+
+mkfs.fat -F32 /dev/sdX1
+mkfs.ext4 /dev/sdX2
+
+mount /dev/sdX2 /mnt
+mkdir -p /mnt/boot
+mount /dev/sdX1 /mnt/boot
+```
+
+Then run the installer and finish up:
+
+```bash
+cd /root/airnix/arch
+./install/install.sh macbook-air         # or: xps-8300
+
+arch-chroot /mnt passwd                  # root password
+arch-chroot /mnt passwd steve            # user password
+reboot
+
+# after first boot, as steve:
+cd /root/airnix/arch && ./install/dotfiles.sh
+```
+
+`install.sh` runs `pacstrap` with `base.txt` + `niri.txt` + the host list,
+generates `fstab`, copies the repo to `/root/airnix`, and hands off to
+`chroot-setup.sh` for locale, user, module blacklists, and systemd-boot entries.
+
+## Niri notes
+
+Niri is scrollable tiling: windows sit on an infinite horizontal strip per
+workspace rather than in a split tree. `Super+Left/Right` moves along the strip,
+`Super+Up/Down` moves within a column. The keybinds in `dotfiles/niri/config.kdl`
+otherwise mirror the Hyprland ones (`Super+Return` terminal, `Super+D` launcher,
+`Super+Q` close, `Super+1..4` workspaces).
+
+One real difference from Hyprland: **niri has no built-in XWayland**. X11 apps
+need `xwayland-satellite`, which the config starts at login. If an X11 app shows
+a blank window, check that it is running.
+
+## XPS: ZFS data pool
+
+Root stays **ext4** on both distros; ZFS is only the data pool across the extra
+SSDs. On NixOS this is declarative (`boot.supportedFilesystems`, `networking.hostId`).
+
+On Arch, ZFS is **not in the official repos**. Pick one:
+
+- **AUR:** `zfs-dkms` + `zfs-utils` (rebuilds per kernel, can lag new kernels)
+- **archzfs** unofficial repo (prebuilt)
+
+`install.sh` does not install ZFS automatically for this reason. Create the pool
+by hand once, matching the actual disks:
+
+```bash
+zpool create -o ashift=12 -O compression=zstd -O mountpoint=/data \
+  tank mirror /dev/disk/by-id/<ssd-a> /dev/disk/by-id/<ssd-b>
+# 3+ disks with one-disk fault tolerance: swap `mirror ...` for `raidz <a> <b> <c>`
+zfs set com.sun:auto-snapshot=true tank
+```
+
+ZFS is out-of-tree and lags the newest kernels, so do not chase the latest
+kernel on the XPS if you rely on the pool.
+
+---
+
+## What each machine gets
+
+Shared across both distros: zsh + plugins, git/gh/lazygit/direnv, neovim,
+ripgrep/fd/bat/eza/jq/fzf, Firefox + Chromium, mpv, Podman, PipeWire, Fira Code
+and Nerd Fonts, and a Wayland compositor (Hyprland on NixOS, niri on Arch).
+
+**MacBook Air:** `wl` Wi-Fi, applesmc (fans/temps/backlight), FaceTime camera
+(NixOS), trackpad tap-to-click and natural scrolling, TLP + thermald. The
+integrated Intel GPU limits gaming to light titles.
+
+**XPS 8300:** NVIDIA GTX 1060 (proprietary driver, modesetting on for Wayland),
+`brcmsmac` Wi-Fi, ZFS data pool, Incus for system containers and VMs (including
+Home Assistant OS), key-only SSH, Prometheus + Grafana on `:3000`, and Jellyfin
+on `:8096` with NVENC transcoding.
+
+---
+
+## Flashing an ISO
+
+**Do not use Ventoy on Macs** (boot problems on Apple EFI). Use `dd`.
 
 macOS (find N with `diskutil list`, unmount first):
 
 ```bash
 diskutil list
 diskutil unmountDisk /dev/diskN
-sudo dd if=nixusb-installer.iso of=/dev/rdiskN bs=4m
+sudo dd if=<image>.iso of=/dev/rdiskN bs=4m
 ```
 
 Linux:
 
 ```bash
-sudo dd if=nixusb-installer.iso of=/dev/sdX bs=4M status=progress oflag=sync
+sudo dd if=<image>.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
 Double-check the device: `dd` erases the wrong disk without complaint.
 
----
+## Booting the target machine
 
-## Step 3: Boot the target machine
-
-- **MacBook Air:** plug in the USB, power on, immediately hold **Option (⌥)**,
-  pick the **EFI Boot** drive, then the default NixOS entry. (No T2, so no
-  Secure Boot to disable.)
-- **XPS 8300:** tap **F12** at the Dell logo for the one-time boot menu, pick the
-  USB. If you installed in UEFI mode choose the UEFI USB entry; the host config
-  assumes UEFI (see the note in its file for legacy BIOS).
-
-You land at a root shell on the live system.
-
----
-
-## Step 4: Install (flake-based)
-
-**First pick the Wi-Fi driver for the machine you're on.** The ISO boots neutral
-(no Broadcom driver loaded) because the two machines need opposite setups; a
-one-shot script selects the right one:
-
-```bash
-use-wl          # MacBook Air (BCM4360)  -> proprietary wl
-# or
-use-brcmsmac    # XPS 8300 (DW1501/BCM4313) -> open brcmsmac
-```
-
-Then join Wi-Fi with `wifi-connect`. On the **Air**, NetworkManager/nmtui don't
-work (the `wl` driver has broken cfg80211 on this kernel), so `wifi-connect` uses
-`wpa_supplicant` + `dhcpcd` from a clean device state. On the **XPS**, the open
-`brcmsmac` driver usually works with plain `nmtui` too, but `wifi-connect` works
-on both:
-
-```bash
-wifi-connect "YOUR_SSID" "YOUR_PASSWORD"   # add the interface as a 3rd arg if not wlp3s0
-ping nixos.org                             # confirm you're online
-```
-
-If it can't associate, run wpa_supplicant in the foreground to see the reason
-(wrong password vs handshake failure):
-
-```bash
-sudo wpa_supplicant -i wlp3s0 -c /tmp/wpa.conf
-```
-
-If DHCP gives a `169.254.x.x` (no lease) but you're associated, set a static IP
-matching your network instead:
-
-```bash
-sudo ip addr add 10.0.0.200/24 dev wlp3s0
-sudo ip route add default via 10.0.0.1
-printf 'nameserver 1.1.1.1\n' | sudo tee /etc/resolv.conf
-```
-
-Worst case, a USB-Ethernet adapter sidesteps `wl` entirely (the whole flake is
-on the ISO, so install works offline).
-
-Partition, format, and mount. This **erases the disk**, so run `lsblk` first
-(the disk is often `/dev/sda` or `/dev/nvme0n1`):
-
-```bash
-sudo -i
-parted /dev/sdX -- mklabel gpt
-parted /dev/sdX -- mkpart ESP fat32 1MiB 512MiB
-parted /dev/sdX -- set 1 esp on
-parted /dev/sdX -- mkpart primary 512MiB 100%
-
-mkfs.fat -F32 -n BOOT /dev/sdX1
-mkfs.ext4 -L nixos /dev/sdX2
-
-mount /dev/disk/by-label/nixos /mnt
-mkdir -p /mnt/boot
-mount /dev/disk/by-label/BOOT /mnt/boot
-```
-
-**XPS only, the ZFS data pool.** The XPS root stays ext4 (above); its extra SSDs
-form a ZFS *data* pool (not root). The host config enables ZFS and auto-imports
-the pool, but the pool is created by hand so you can match the actual disks.
-`lsblk` / `ls /dev/disk/by-id/` to find them, then (example, a 2-disk mirror):
-
-```bash
-zpool create -o ashift=12 -O compression=zstd -O mountpoint=/data \
-  tank mirror /dev/disk/by-id/<ssd-a> /dev/disk/by-id/<ssd-b>
-# 3+ disks with one-disk fault tolerance: swap `mirror ...` for `raidz <a> <b> <c>`.
-# Opt a dataset into auto-snapshots:
-zfs set com.sun:auto-snapshot=true tank
-```
-
-The pool imports automatically on every boot (the host sets the required
-`networking.hostId`). Do this before `nixos-install` if you want `/data` mounted
-at first boot, or any time after.
-
-The whole flake is **already on the ISO** (under `/iso/etc/nixos-install/nixusb`
-on the live system), so no clone is needed and the install works with no network.
-Two baked-in helpers do the rest:
-
-- `nixusb-stage` creates `/mnt/etc`, copies the flake to `/mnt/etc/nixos`, and
-  makes it writable (the ISO copy is read-only, which would block the next step).
-- `nixusb-hwconfig <host>` writes this machine's `hardware-configuration.nix`
-  into its host dir via `nixos-generate-config --show-hardware-config` (only the
-  hardware file, filesystems included, never a stray `configuration.nix`).
-
-```bash
-nixusb-stage                     # copy the flake to /mnt/etc/nixos (writable)
-nixusb-hwconfig macbook-air      # or: nixusb-hwconfig xps-8300
-```
-
-Install the right host and reboot:
-
-```bash
-# Air:
-nixos-install --flake /mnt/etc/nixos#macbook-air
-# XPS:
-nixos-install --flake /mnt/etc/nixos#xps-8300
-
-reboot
-```
-
-> Prefer to pull the latest from GitHub instead of the baked-in copy? If you
-> have working network, `git clone https://github.com/shindakun/nixusb
-> /mnt/etc/nixos` in place of the `cp` above.
-
-`nixos-install` prompts for a root password at the end. After reboot, log in
-and set steve's password: `passwd steve`.
-
-> The Air's FaceTime camera downloads firmware at build time, so stay online for
-> `nixos-install`.
-
----
-
-## What both machines get
-
-From the shared modules and Home Manager:
-
-- **Nix:** flakes + the new `nix` CLI enabled by default.
-- **Desktop:** GNOME (GDM) and **Hyprland** both available; pick the session at
-  login. Hyprland setup: waybar, wofi, mako, kitty, hyprpaper, hyprlock, grim/slurp.
-- **Shell:** zsh + oh-my-zsh (autosuggestions, syntax highlighting; git/direnv/
-  fzf/sudo plugins), zoxide, steve's login shell.
-- **Editors:** VS Code, Zed, neovim/vim.
-- **Browsers:** Firefox, Chromium.
-- **Dev:** git (+lfs), gh, lazygit, direnv (+nix-direnv), claude-code, nodejs,
-  ripgrep, fd, bat, eza, jq, yq-go, httpie, fzf, tmux, fastfetch, tealdeer,
-  p7zip, nil, nixpkgs-fmt, cmake, gcc, go, gnumake.
-- **Media:** mpv, imv.
-- **Containers:** Podman with docker-compat.
-- **Gaming:** Steam (with the 32-bit graphics stack and Remote Play firewall).
-- **Audio:** PipeWire. **Fonts:** Fira Code + Nerd Font variants, Linux Libertine.
-
-Per machine:
-
-- **Air:** `wl` Wi-Fi, applesmc, FaceTime camera, trackpad (tap + natural scroll),
-  thermald + TLP. Steam runs but the integrated Intel GPU limits it to light titles.
-- **XPS:** NVIDIA GTX 1060 (proprietary driver, modesetting on for Wayland),
-  `brcmsmac` Wi-Fi, **ZFS data pool** across its extra SSDs (ext4 root),
-  **Incus** (system containers + VMs) alongside Podman, key-only **SSH**, and the
-  GPU that actually makes Steam worthwhile.
-
----
-
-## Day-to-day
-
-Rebuild after editing the flake (on the machine itself):
-
-```bash
-sudo nixos-rebuild switch --flake /etc/nixos#macbook-air   # or #xps-8300
-```
-
-Update inputs (nixpkgs, home-manager, nixos-hardware):
-
-```bash
-nix flake update /etc/nixos
-```
-
----
-
-## Editing the desktop / shell / Hyprland
-
-- **Swap GNOME** for KDE or Xfce: edit `modules/desktop.nix` once, both hosts
-  follow.
-- **Hyprland keybinds / bar / launcher:** all in `home/steve.nix` under
-  `wayland.windowManager.hyprland` and the Hyprland package list.
-- **oh-my-zsh theme / plugins:** `home/steve.nix`, `programs.zsh.ohMyZsh`.
-- **Your git identity:** `home/steve.nix`, `programs.git.settings.user.name` /
-  `programs.git.settings.user.email`.
+- **MacBook Air:** plug in the USB, power on, immediately hold **Option**, pick
+  the **EFI Boot** drive. No T2, so no Secure Boot to disable.
+- **XPS 8300:** tap **F12** at the Dell logo for the one-time boot menu. Both
+  configs assume **UEFI**; for legacy BIOS on the XPS use GRUB instead of
+  systemd-boot (see the note in its config).

@@ -1,0 +1,42 @@
+# Dell XPS 8300 (Sandy Bridge, GTX 1060, DW1501/BCM4313 Wi-Fi).
+# Install:  pacman -S --needed - < xps-8300.txt
+#
+# This host boots the plain `linux` kernel. brcmsmac is in-kernel, so unlike
+# the Air there is no DKMS module and no reason to pin linux-lts.
+
+# ---- NVIDIA GTX 1060 (Pascal) ----
+# `nvidia` matches the `linux` kernel; `nvidia-lts` matches linux-lts. Both are
+# listed so either kernel boots with a working driver.
+nvidia
+nvidia-lts
+nvidia-utils
+nvidia-settings
+libva-nvidia-driver
+
+# ---- Wi-Fi: DW1501 / BCM4313 ----
+# brcmsmac is in-kernel; only firmware is needed (from linux-firmware in base).
+# No package here, kept as a note so the parallel with the Air is obvious.
+
+# ---- ZFS data pool ----
+# ZFS is NOT in the official repos. Options, pick one:
+#   a) AUR: zfs-dkms + zfs-utils  (rebuilds per kernel, can lag new kernels)
+#   b) archzfs unofficial repo    (prebuilt, see arch/install/README)
+# The install script does NOT install ZFS automatically for this reason.
+# Root stays ext4 either way; ZFS is only the data pool.
+
+# ---- containers / VMs ----
+# Incus replaces the NixOS setup 1:1. Needs nftables (not iptables).
+incus
+nftables
+qemu-base
+edk2-ovmf
+dnsmasq
+
+# ---- monitoring ----
+prometheus
+prometheus-node-exporter
+grafana
+
+# ---- media server ----
+jellyfin-server
+jellyfin-web
