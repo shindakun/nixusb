@@ -57,12 +57,27 @@ iso:
 	@echo "==> ISO in $(OUT)/"
 
 ## Build the ISO inside an Arch container (works from macOS on x86_64).
-# archiso needs --privileged: it makes loop devices and mounts filesystems.
+# Two hard requirements, both learned by hitting them:
+#
+#  1. The Podman machine must be ROOTFUL. pacstrap mounts /dev as a devtmpfs,
+#     which a rootless machine cannot create no matter what --privileged says
+#     (it only grants privileges the engine itself has). Fix:
+#       podman machine stop && podman machine set --rootful && podman machine start
+#
+#  2. BUILD_DIR must be CONTAINER-LOCAL (/build), not the virtiofs share.
+#     pacman cannot lock its database on virtiofs, so pacstrap fails with
+#     "unable to lock database". build.sh copies the finished ISO back to
+#     iso/out/ on the share.
 iso-podman:
+	@podman machine inspect --format '{{.Rootful}}' 2>/dev/null | grep -qx true \
+	  || { echo "The Podman machine is ROOTLESS; pacstrap cannot mount devtmpfs."; \
+	       echo "Make it rootful first:"; \
+	       echo "  podman machine stop && podman machine set --rootful && podman machine start"; \
+	       exit 1; }
 	podman run --rm --privileged -v "$(CURDIR)/..":/work -w /work/arch \
 	  $(ARCH_IMAGE) bash -c "\
 	    pacman -Sy --noconfirm --needed archiso rsync && \
-	    ./iso/build.sh"
+	    BUILD_DIR=/build ./iso/build.sh"
 	@echo "==> ISO in $(OUT)/"
 
 ## Remove archiso build artifacts (work/, out/, the generated profile/).

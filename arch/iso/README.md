@@ -11,20 +11,57 @@ there. This ISO serves both anyway: one stick, two machines.
 ## Requirements
 
 `archiso` must run on an Arch Linux host (it uses pacman/pacstrap against the
-live package DB). It does not run on macOS. Options:
+live package DB). It does not run natively on macOS. Options:
 
 - an existing Arch box
-- an Arch container on the Mac:
-  `podman run --rm --privileged -v "$PWD":/work -w /work archlinux:latest`
-  (install archiso inside, then run `build.sh`)
+- an Arch container on the Mac, via `make iso-podman` (see the caveats below)
 - the XPS itself, once it is running Arch, to build the Air's ISO
 
 ## Build
+
+On a native Arch host:
 
 ```bash
 sudo pacman -S archiso
 sudo ./build.sh          # writes out/airnix-arch-<date>.iso
 ```
+
+From macOS, in a container:
+
+```bash
+make iso-podman          # from arch/, or `make arch-iso-podman` from the root
+```
+
+### Two container gotchas (both hit in practice)
+
+**The Podman machine must be rootful.** `pacstrap` mounts `/dev` as a devtmpfs,
+and a *rootless* machine cannot create one no matter what `--privileged` says:
+that flag only grants privileges the container engine itself already has. The
+symptom is:
+
+```
+mount: /.../airootfs/dev: permission denied.
+==> ERROR: failed to setup chroot
+```
+
+Fix it once:
+
+```bash
+podman machine stop
+podman machine set --rootful
+podman machine start
+```
+
+`make iso-podman` checks this up front and refuses with the same instructions
+rather than failing halfway through a long build.
+
+**The build tree cannot live on the macOS file share.** The repo reaches the
+container over virtiofs, and pacman cannot lock its database there, so pacstrap
+dies with `unable to lock database` even after the mount problem is solved.
+`build.sh` therefore takes a `BUILD_DIR` environment variable; the Makefile sets
+`BUILD_DIR=/build` (container-local storage) and only the finished ISO is copied
+back to `out/` on the share. On a native Arch host `BUILD_DIR` defaults to this
+directory, which is fine.
 
 ## What is baked in
 

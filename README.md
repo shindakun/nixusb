@@ -239,6 +239,19 @@ make arch-iso
 make arch-iso-podman
 ```
 
+The container build has two requirements, both of which will otherwise fail the
+build partway through:
+
+- **The Podman machine must be rootful.** `pacstrap` mounts `/dev` as a
+  devtmpfs, which a rootless machine cannot create regardless of `--privileged`
+  (that flag only grants privileges the engine already has). Fix it once with
+  `podman machine stop && podman machine set --rootful && podman machine start`.
+  `make arch-iso-podman` checks this before starting.
+- **The build tree stays off the macOS file share.** pacman cannot lock its
+  database over virtiofs, so `build.sh` takes a `BUILD_DIR` (the Makefile passes
+  container-local `/build`) and copies only the finished ISO back to
+  `arch/iso/out/`.
+
 Either writes `arch/iso/out/airnix-arch-<date>.iso`. Both run
 `arch/iso/build.sh`, which you can also call directly with `sudo ./iso/build.sh`
 from `arch/`. Inside `arch/` the targets are unprefixed (`make iso`,

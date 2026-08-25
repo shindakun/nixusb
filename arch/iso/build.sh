@@ -6,13 +6,22 @@
 #   sudo ./build.sh
 #
 # Output: ./out/airnix-arch-<date>.iso
+#
+# BUILD_DIR: where the profile and archiso work tree are staged. Defaults to
+# this directory, which is right on a native Arch host. In a container on macOS
+# it MUST be set to container-local storage (the Makefile passes /build),
+# because the repo arrives over virtiofs and pacman CANNOT LOCK ITS DATABASE on
+# that share: pacstrap dies with "unable to lock database". Only the finished
+# ISO is copied back to OUT, which may live on the share.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-PROFILE="$HERE/profile"
-WORK="$HERE/work"
+BUILD_DIR="${BUILD_DIR:-$HERE}"
+PROFILE="$BUILD_DIR/profile"
+WORK="$BUILD_DIR/work"
 OUT="$HERE/out"
+mkdir -p "$BUILD_DIR"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "must run as root (archiso needs it)" >&2; exit 1
@@ -29,6 +38,12 @@ rm -rf "$PROFILE" "$WORK"
 cp -r /usr/share/archiso/configs/releng "$PROFILE"
 
 echo "==> adding packages"
+# The stock releng profile already ships the PREBUILT `broadcom-wl`, which
+# conflicts with `broadcom-wl-dkms` ("unresolvable package conflicts"). We want
+# the DKMS build so the module exists for linux-lts as well as linux, so drop
+# the prebuilt one from the list first.
+sed -i '/^broadcom-wl$/d' "$PROFILE/packages.x86_64"
+
 # broadcom-wl-dkms needs dkms + headers for EVERY kernel in the ISO.
 cat >> "$PROFILE/packages.x86_64" <<'EOF'
 
@@ -50,6 +65,14 @@ gptfdisk
 rsync
 zsh
 EOF
+
+# Something in the list pulls in the `iptables` provider group, and pacstrap
+# stops to ask which provider to use (iptables / iptables-legacy), hanging a
+# non-interactive build. Name the nft-based default explicitly. (The package is
+# called plain `iptables`; `iptables-nft` does not exist in current Arch.)
+if ! grep -qx 'iptables' "$PROFILE/packages.x86_64"; then
+  echo 'iptables' >> "$PROFILE/packages.x86_64"
+fi
 
 echo "==> baking the repo into the ISO at /root/airnix"
 mkdir -p "$PROFILE/airootfs/root/airnix"
@@ -100,8 +123,17 @@ mkdir -p "$PROFILE/airootfs/etc/modprobe.d"
 echo 'blacklist b43' > "$PROFILE/airootfs/etc/modprobe.d/airnix-neutral.conf"
 
 echo "==> running mkarchiso (this takes a while)"
-mkdir -p "$OUT"
-mkarchiso -v -w "$WORK" -o "$OUT" "$PROFILE"
+# Stage the output next to the work tree, then copy the finished ISO to OUT.
+# mkarchiso writes the image with mv/rename semantics that also misbehave on
+# virtiofs, so it must land on the same local filesystem as WORK first.
+STAGE_OUT="$BUILD_DIR/out"
+mkdir -p "$STAGE_OUT" "$OUT"
+mkarchiso -v -w "$WORK" -o "$STAGE_OUT" "$PROFILE"
+
+if [ "$STAGE_OUT" != "$OUT" ]; then
+  echo "==> copying the ISO out to $OUT"
+  cp -v "$STAGE_OUT"/*.iso "$OUT"/
+fi
 
 rm -rf "$WORK"
 echo
