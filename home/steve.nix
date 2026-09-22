@@ -190,7 +190,7 @@
     }
 
     layout {
-        gaps 12
+        gaps 6
         center-focused-column "never"
         default-column-width { proportion 0.5; }
         focus-ring {
