@@ -38,13 +38,19 @@
   programs.git = {
     enable = true;
     lfs.enable = true;
-    delta.enable = true; # syntax-highlighted diffs; also wires delta as git's pager
     # Set your identity here once and both machines share it.
     settings.user.name = "steve";
     settings.user.email = "shindakun@users.noreply.github.com";
     # Always talk to GitHub over SSH, even when a remote is an https URL.
     # (Pushing still needs an SSH key registered on your GitHub account.)
     settings.url."git@github.com:".insteadOf = "https://github.com/";
+  };
+
+  # ---- delta (syntax-highlighted diffs; wires itself as git's pager) --
+  # HM hoisted this out of `programs.git.delta` — explicit git integration.
+  programs.delta = {
+    enable = true;
+    enableGitIntegration = true;
   };
 
   # ---- bat (syntax-highlighted `cat`) ---------------------------------
