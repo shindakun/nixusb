@@ -193,6 +193,12 @@
         gaps 6
         center-focused-column "never"
         default-column-width { proportion 0.5; }
+        preset-column-widths {
+            proportion 0.33
+            proportion 0.5
+            proportion 0.66
+            proportion 1.0
+        }
         focus-ring {
             width 2
         }
@@ -212,6 +218,10 @@
         Mod+E      { spawn "nautilus"; }
         Mod+V      { toggle-window-floating; }
         Mod+F      { fullscreen-window; }
+        Mod+Shift+F { maximize-column; }
+        Mod+Minus  { set-column-width "-10%"; }
+        Mod+Equal  { set-column-width "+10%"; }
+        Mod+R      { switch-preset-column-width; }
 
         Mod+Left   { focus-column-left; }
         Mod+Right  { focus-column-right; }
