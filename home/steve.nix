@@ -38,12 +38,28 @@
   programs.git = {
     enable = true;
     lfs.enable = true;
+    delta.enable = true; # syntax-highlighted diffs; also wires delta as git's pager
     # Set your identity here once and both machines share it.
     settings.user.name = "steve";
     settings.user.email = "shindakun@users.noreply.github.com";
     # Always talk to GitHub over SSH, even when a remote is an https URL.
     # (Pushing still needs an SSH key registered on your GitHub account.)
     settings.url."git@github.com:".insteadOf = "https://github.com/";
+  };
+
+  # ---- bat (syntax-highlighted `cat`) ---------------------------------
+  programs.bat.enable = true;
+
+  # ---- micro (terminal text editor) -----------------------------------
+  # HM writes settings to ~/.config/micro/settings.json.
+  # Options: https://github.com/zyedidia/micro/blob/master/runtime/help/options.md
+  programs.micro = {
+    enable = true;
+    settings = {
+      colorscheme = "simple";
+      tabsize = 2;
+      tabstospaces = true;
+    };
   };
 
   # ---- gh (GitHub CLI) -------------------------------------------------
@@ -64,6 +80,20 @@
   # GNOME pre-creates ~/.config/mimeapps.list, which collides with the above and
   # makes home-manager activation fail ("file is in the way"). Let HM overwrite it.
   xdg.configFile."mimeapps.list".force = true;
+  xdg.configFile."hypr/hyprland.conf".force = true;
+  xdg.configFile."niri/config.kdl".force = true;
+
+  # Suppress the system-wide ibus autostart. nixpkgs ships
+  # /etc/xdg/autostart/ibus-daemon.desktop (pulled in transitively via GNOME),
+  # which systemd's xdg-autostart generator turns into a running user unit even
+  # under Niri. A user-level override with Hidden=true takes precedence and the
+  # generator skips it. Remove this stanza if you actually want an IME.
+  xdg.configFile."autostart/ibus-daemon.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=IBus
+    Hidden=true
+  '';
 
   # ---- Hyprland (Wayland compositor) ----------------------------------
   # System enablement is in modules/hyprland.nix; this is the per-user config.
@@ -75,6 +105,10 @@
     # etc., "syntax error near '-'"). Force the classic hyprlang `.conf` format,
     # which is what these `settings` are written for.
     configType = "hyprlang";
+    # Variables ($mod etc.) go in `variables`, which Home Manager emits FIRST,
+    # before any bind that references them. Putting them in `settings` could
+    # emit them after the binds, so Hyprland parses `$mod` before it's defined
+    # ("<name> expected near '$'"). SUPER is inlined in binds to be safe.
     settings = {
       exec-once = [
         "waybar"
@@ -127,6 +161,70 @@
     };
   };
 
+  # ---- Niri (scrollable-tiling Wayland compositor) --------------------
+  # System enablement is in modules/niri.nix. This writes the KDL config
+  # directly; there's no built-in HM module for niri in nixpkgs 26.05.
+  # Autostarts noctalia-shell (Quickshell-based bar/launcher/notifications),
+  # so waybar/mako/wofi are NOT launched under this session.
+  xdg.configFile."niri/config.kdl".text = ''
+    // Managed by home-manager (home/steve.nix). Edit there, not here.
+
+    spawn-at-startup "noctalia-shell"
+
+    input {
+        keyboard {
+            xkb {
+                layout "us"
+            }
+        }
+        touchpad {
+            tap
+            natural-scroll
+        }
+    }
+
+    layout {
+        gaps 12
+        center-focused-column "never"
+        default-column-width { proportion 0.5; }
+        focus-ring {
+            width 2
+        }
+    }
+
+    prefer-no-csd
+
+    hotkey-overlay {
+        skip-at-startup
+    }
+
+    binds {
+        Mod+Return { spawn "kitty"; }
+        Mod+D      { spawn "wofi" "--show" "drun"; }
+        Mod+Q      { close-window; }
+        Mod+Shift+M { quit; }
+        Mod+E      { spawn "nautilus"; }
+        Mod+V      { toggle-window-floating; }
+        Mod+F      { fullscreen-window; }
+
+        Mod+Left   { focus-column-left; }
+        Mod+Right  { focus-column-right; }
+        Mod+Up     { focus-window-up; }
+        Mod+Down   { focus-window-down; }
+
+        Mod+1 { focus-workspace 1; }
+        Mod+2 { focus-workspace 2; }
+        Mod+3 { focus-workspace 3; }
+        Mod+4 { focus-workspace 4; }
+        Mod+Shift+1 { move-column-to-workspace 1; }
+        Mod+Shift+2 { move-column-to-workspace 2; }
+        Mod+Shift+3 { move-column-to-workspace 3; }
+        Mod+Shift+4 { move-column-to-workspace 4; }
+
+        Print { spawn "sh" "-c" "grim -g \"$(slurp)\" - | wl-copy"; }
+    }
+  '';
+
   programs.kitty.enable = true; # terminal Hyprland launches
 
   # ---- User packages (the dev environment, shared by all hosts) -------
@@ -147,8 +245,10 @@
     # nicer CLI replacements
     ripgrep
     fd
-    bat
     eza
+
+    # herdr-file-viewer optional renderers (bat + delta wired via programs.*)
+    glow
 
     # browsers
     firefox
@@ -172,6 +272,11 @@
     go
     gnumake
     pkg-config
+    rustc
+    cargo
+    rustfmt
+    clippy
+    rust-analyzer
 
     # media
     mpv # video player
@@ -193,7 +298,13 @@
     networkmanagerapplet # nm-applet tray (Wi-Fi under Hyprland)
     brightnessctl # backlight keys
     pavucontrol # audio mixer GUI
+
+    # Niri toolkit (noctalia = Quickshell-based bar/launcher/notifications)
+    noctalia-shell
+    quickshell
   ];
+
+  home.sessionPath = [ "$HOME/.local/bin" ];
 
   # The HM release this config targets. Keep in step with system.stateVersion.
   home.stateVersion = "26.05";
