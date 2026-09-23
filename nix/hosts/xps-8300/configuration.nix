@@ -31,16 +31,18 @@
   boot.blacklistedKernelModules = [ "b43" "wl" ];
 
   # ---- NVIDIA GTX 1060 (Pascal) ----------------------------------------
-  # The GTX 1060 is supported by the CURRENT proprietary driver (not a legacy
-  # branch, not nouveau). allowUnfree is already set in modules/common.nix.
+  # Pascal (GTX 10xx) was DROPPED by driver branches after 580. nixpkgs keeps
+  # 580 as the long-lived LTSB branch precisely for "Maxwell through Volta,
+  # roughly GTX 9xx through 10xx", so pin it: `stable` (595+) would build but
+  # would not drive this card. allowUnfree is already set in modules/common.nix.
   services.xserver.videoDrivers = [ "nvidia" ];
   hardware.graphics.enable = true;
   hardware.nvidia = {
-    modesetting.enable = true; # required for Wayland (Hyprland)
-    open = false; # GTX 1060 predates the open module; use proprietary
+    branch = "legacy_580";
+    modesetting.enable = true; # required for Wayland (niri)
+    open = false; # open kernel modules need Turing or newer; Pascal needs closed
     nvidiaSettings = true; # the nvidia-settings GUI
     powerManagement.enable = false; # desktop, no suspend power tricks needed
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
   };
 
   # ---- Incus (system containers + VMs) ---------------------------------

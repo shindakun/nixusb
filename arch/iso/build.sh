@@ -59,7 +59,6 @@ dhcpcd
 iw
 wireless_tools
 git
-neovim
 parted
 gptfdisk
 rsync

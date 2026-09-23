@@ -17,6 +17,9 @@
 ARCH_IMAGE  := docker.io/library/archlinux:latest
 SCRIPTS     := $(wildcard install/*.sh) iso/build.sh
 PKGLISTS    := $(wildcard packages/*.txt)
+# Shared with the NixOS side; dotfiles.sh installs these same files.
+NIRI_CFG     := ../nix/home/niri/config.kdl
+NOCTALIA_CFG := ../nix/home/noctalia/config.toml
 OUT         := iso/out
 
 .DEFAULT_GOAL := check
@@ -35,16 +38,14 @@ check:
 	  n=$$(grep -vcE '^\s*(#|$$)' "$$f"); \
 	  test "$$n" -gt 0 && echo "  OK   $$f ($$n pkgs)" \
 	    || { echo "  FAIL $$f has no packages"; exit 1; }; done
-	@echo "==> waybar config is valid JSON (comments stripped)"
-	@python3 -c "import json,re,sys; \
-	  s=open('dotfiles/waybar/config.jsonc').read(); \
-	  json.loads(re.sub(r'^\s*//.*$$','',s,flags=re.M)); \
-	  print('  OK   dotfiles/waybar/config.jsonc')"
 	@echo "==> niri config parses (needs niri; skipped if absent)"
 	@command -v niri >/dev/null \
-	  && { niri validate -c dotfiles/niri/config.kdl \
-	       && echo "  OK   dotfiles/niri/config.kdl"; } \
+	  && { niri validate -c $(NIRI_CFG) && echo "  OK   $(NIRI_CFG)"; } \
 	  || echo "  SKIP niri not installed (validate on the target machine)"
+	@echo "==> noctalia config parses (needs noctalia; skipped if absent)"
+	@command -v noctalia >/dev/null \
+	  && { noctalia config validate $(NOCTALIA_CFG) && echo "  OK   $(NOCTALIA_CFG)"; } \
+	  || echo "  SKIP noctalia not installed (validate on the target machine)"
 	@echo "==> all checks passed"
 
 ## Build the installer ISO. Must run ON Arch, as root.

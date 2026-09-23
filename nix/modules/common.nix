@@ -67,6 +67,10 @@
     curl
     git
     tree
+    rsync
+    file
+    pciutils
+    usbutils
   ];
 
   # ---- Weekly SSD trim (harmless on spinning disks too) ----------------

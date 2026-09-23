@@ -65,69 +65,15 @@
   # makes home-manager activation fail ("file is in the way"). Let HM overwrite it.
   xdg.configFile."mimeapps.list".force = true;
 
-  # ---- Hyprland (Wayland compositor) ----------------------------------
-  # System enablement is in modules/hyprland.nix; this is the per-user config.
-  # A starter setup: kitty terminal, wofi launcher, waybar, mako notifications.
-  wayland.windowManager.hyprland = {
-    enable = true;
-    # Home Manager flips the config format to Lua when home.stateVersion >= 26.05.
-    # The Lua backend is buggy (mangles our settings into broken `hl.exec-once(...)`
-    # etc., "syntax error near '-'"). Force the classic hyprlang `.conf` format,
-    # which is what these `settings` are written for.
-    configType = "hyprlang";
-    settings = {
-      exec-once = [
-        "waybar"
-        "mako"
-        "hyprpaper"
-        # Clipboard: keep a persistent clipboard + history so copy/paste works
-        # between apps (Wayland has no clipboard daemon by default).
-        "wl-paste --type text --watch cliphist store"
-        "wl-paste --type image --watch cliphist store"
-      ];
+  # ---- niri + Noctalia ------------------------------------------------
+  # System enablement is in modules/niri.nix; these are the per-user configs,
+  # shared with the Arch side (arch/install/dotfiles.sh copies the same files).
+  # Both land as read-only /nix/store symlinks: edit the files here and rebuild.
+  # A running niri reloads config.kdl on save; Noctalia hot-reloads config.toml.
+  xdg.configFile."niri/config.kdl".source = ./niri/config.kdl;
+  xdg.configFile."noctalia/config.toml".source = ./noctalia/config.toml;
 
-      monitor = ",preferred,auto,1"; # autodetect; tune per-display later
-
-      general = {
-        gaps_in = 5;
-        gaps_out = 10;
-        border_size = 2;
-      };
-
-      bind = [
-        "SUPER, Return, exec, kitty"
-        "SUPER, D, exec, wofi --show drun"
-        "SUPER, Q, killactive"
-        "SUPER, M, exit"
-        "SUPER, E, exec, nautilus"
-        "SUPER, V, togglefloating"
-        "SUPER, F, fullscreen"
-        "SUPER, left, movefocus, l"
-        "SUPER, right, movefocus, r"
-        "SUPER, up, movefocus, u"
-        "SUPER, down, movefocus, d"
-        "SUPER, 1, workspace, 1"
-        "SUPER, 2, workspace, 2"
-        "SUPER, 3, workspace, 3"
-        "SUPER, 4, workspace, 4"
-        "SUPER SHIFT, 1, movetoworkspace, 1"
-        "SUPER SHIFT, 2, movetoworkspace, 2"
-        "SUPER SHIFT, 3, movetoworkspace, 3"
-        "SUPER SHIFT, 4, movetoworkspace, 4"
-        # Screenshot region to clipboard. Wrapped in `bash -c` so the shell
-        # handles the pipe/$()/dash, not Hyprland's bind parser (which errors
-        # on the bare `-`).
-        ", Print, exec, bash -c 'grim -g \"$(slurp)\" - | wl-copy'"
-      ];
-
-      bindm = [
-        "SUPER, mouse:272, movewindow"
-        "SUPER, mouse:273, resizewindow"
-      ];
-    };
-  };
-
-  programs.kitty.enable = true; # terminal Hyprland launches
+  programs.kitty.enable = true; # terminal niri launches (Mod+Return)
 
   # ---- User packages (the dev environment, shared by all hosts) -------
   home.packages = with pkgs; [
@@ -158,40 +104,54 @@
     vscode
     zed-editor
 
-    # AI / node
+    # AI
     claude-code
-    nodejs
 
-    # Nix tooling
-    nil
-    nixpkgs-fmt
-
-    # devtools: compilers, build systems, languages
-    cmake
+    # ---- language toolchains (kept in step with arch/packages/base.txt) ----
+    # C / C++
     gcc
-    go
+    cmake
     gnumake
     pkg-config
+
+    # Go
+    go
+
+    # Rust
+    rustc
+    cargo
+    clippy
+    rustfmt
+
+    # Node
+    nodejs # ships npm
+    pnpm
+
+    # Python. uv handles envs, installs, and pinned tool runs; no pip needed.
+    python3
+    uv
+
+    # ---- language servers, linters, formatters ----
+    nil
+    nixpkgs-fmt
+    gopls
+    rust-analyzer
+    typescript-language-server
+    ruff # python lint + format
+    shellcheck
+    shfmt
 
     # media
     mpv # video player
     imv # Wayland image viewer
 
-    # Hyprland toolkit
-    waybar # status bar
-    wofi # app launcher
-    mako # notifications
-    hyprpaper # wallpaper
-    hyprlock # screen locker
-    hypridle # idle daemon (triggers hyprlock)
-    wlogout # power menu
-    grim
-    slurp # screenshots (region select)
-    swappy # annotate screenshots
-    cliphist # clipboard history
+    # Wayland desktop
+    noctalia # shell: bar, launcher, notifications, lock, wallpaper, clipboard
     wl-clipboard # wl-copy / wl-paste
-    networkmanagerapplet # nm-applet tray (Wi-Fi under Hyprland)
-    brightnessctl # backlight keys
+    grim
+    slurp # screenshots from the CLI (niri's Print bind has its own picker)
+    brightnessctl # backlight from the CLI
+    playerctl # media keys
     pavucontrol # audio mixer GUI
   ];
 

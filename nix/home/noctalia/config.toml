@@ -1,0 +1,44 @@
+# Noctalia config, shared by both distros.
+#   NixOS: linked to ~/.config/noctalia/config.toml by Home Manager (home/steve.nix)
+#   Arch:  copied there by arch/install/dotfiles.sh
+#
+# This is the base layer. Changes made in Noctalia's settings UI are saved to
+# ~/.local/state/noctalia/settings.toml and win over this file, so the file
+# can stay read-only (it is a /nix/store symlink on NixOS). Every key not set
+# here keeps Noctalia's default.
+
+[shell]
+font_family        = "FiraCode Nerd Font"
+telemetry_enabled  = false
+polkit_agent       = true
+settings_show_advanced = false
+
+[theme]
+mode    = "dark"
+source  = "builtin"
+builtin = "Catppuccin"
+
+[wallpaper]
+enabled   = true
+
+[backdrop]
+enabled = true
+
+[lockscreen]
+enabled = true
+
+[idle.behavior.lock]
+timeout = 600
+action  = "lock"
+enabled = true
+
+[idle.behavior.screen-off]
+timeout = 660
+action  = "screen_off"
+enabled = true
+
+[bar.main]
+position = "top"
+start  = ["launcher", "workspaces"]
+center = ["clock"]
+end    = ["media", "tray", "notifications", "clipboard", "network", "bluetooth", "volume", "brightness", "battery", "control-center", "session"]

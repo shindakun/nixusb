@@ -71,6 +71,7 @@ Remaining, by hand:
                          arch-chroot /mnt passwd $USERNAME
   2. Reboot, remove USB.
   3. Install dotfiles:   cd /root/airnix/arch && ./install/dotfiles.sh
-$( [ "$HOST" = xps-8300 ] && echo "  4. Create the ZFS data pool (see root README, 'XPS: ZFS data pool')." )
-$( [ "$HOST" = macbook-air ] && echo "  4. VERIFY you booted linux-lts, then check Wi-Fi: nmcli device wifi list" )
+  4. AUR exceptions:     cd /root/airnix/arch && ./install/aur.sh
+$( [ "$HOST" = xps-8300 ] && echo "  5. Create the ZFS data pool (see root README, 'XPS: ZFS data pool')." )
+$( [ "$HOST" = macbook-air ] && echo "  5. VERIFY you booted linux-lts, then check Wi-Fi: nmcli device wifi list" )
 EOF

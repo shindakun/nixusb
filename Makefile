@@ -60,7 +60,7 @@ help:
 	@echo "  make nix-clean      remove the built ISO"
 	@echo
 	@echo "Arch (arch/):"
-	@echo "  make arch-check     syntax-check scripts + validate configs"
+	@echo "  make arch-check     syntax-check scripts + validate the niri/noctalia configs"
 	@echo "  make arch-iso       build the Arch ISO (needs an Arch host)"
 	@echo "  make arch-iso-podman   build the Arch ISO in a container"
 	@echo "  make arch-clean     remove archiso build artifacts"

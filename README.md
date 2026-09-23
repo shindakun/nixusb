@@ -14,8 +14,8 @@ Repo: <https://github.com/shindakun/nixusb>
 ```text
 airnix/
   Makefile        # dispatcher: nix-* -> nix/, arch-* -> arch/
-  nix/            # the NixOS flake (GNOME + Hyprland)
-  arch/           # the Arch setup (niri)
+  nix/            # the NixOS flake (niri + Noctalia, GNOME as fallback)
+  arch/           # the Arch setup (niri + Noctalia)
 ```
 
 The NixOS side is **installed and working on the Air**. The Arch side is
@@ -79,8 +79,8 @@ the strong candidate fix rather than a confirmed one.
 # NixOS (`nix/`)
 
 A single flake configuring both machines plus one installer ISO. Shared user
-environment (zsh, git, dev tools, fonts, Hyprland) is written once in Home
-Manager and used by both hosts.
+environment (zsh, git, dev tools, fonts, the niri and Noctalia configs) is
+written once in Home Manager and used by both hosts.
 
 ```text
 nix/
@@ -90,10 +90,12 @@ nix/
   modules/
     common.nix                    # nix flakes, podman, user account, locale, base pkgs
     desktop.nix                   # GNOME, PipeWire, fonts
-    hyprland.nix                  # Hyprland compositor (coexists with GNOME)
+    niri.nix                      # niri compositor (coexists with GNOME)
     steam.nix                     # Steam + 32-bit graphics
   home/
-    steve.nix                     # Home Manager: shared user env + Hyprland config
+    steve.nix                     # Home Manager: shared user env, links the configs below
+    niri/config.kdl               # niri config (also used by the Arch side)
+    noctalia/config.toml          # Noctalia shell config (also used by the Arch side)
   hosts/
     macbook-air/                  # wl Wi-Fi, applesmc, trackpad, thermals (+ real hardware config)
     xps-8300/                     # nvidia, brcmsmac Wi-Fi, ZFS, Incus, Grafana, Jellyfin
@@ -181,46 +183,45 @@ sudo). Do not use `/etc/nixos`: a root-owned clone causes endless git
 read-only/lock errors.
 
 ```bash
-sudo nixos-rebuild switch --flake ~/nixusb#macbook-air   # or #xps-8300
-nix flake update ~/nixusb
+sudo nixos-rebuild switch --flake ~/nixusb/nix#macbook-air   # or #xps-8300
+nix flake update --flake ~/nixusb/nix
 ```
 
-Because the flake now lives in a subdirectory, a flake ref pointing at the repo
+The flake lives in the `nix/` subdirectory, so a flake ref pointing at the repo
 root needs the subdir: `github:shindakun/nixusb?dir=nix#macbook-air`.
 
-> **Hyprland gotcha:** Home Manager switches to a buggy Lua config backend when
-> `home.stateVersion >= 26.05` (emits broken `hl.exec-once(...)`, writes
-> `hyprland.lua` instead of `.conf`). The fix, already applied, is
-> `wayland.windowManager.hyprland.configType = "hyprlang"`. Also, `~/.config/hypr/*`
-> are read-only symlinks into `/nix/store`: never edit them, edit
-> `nix/home/steve.nix` and rebuild. A running Hyprland session does not reload
-> config; log out and back in.
+Pick **niri** at the GDM login screen; GNOME stays available as a fallback
+session. `~/.config/niri/config.kdl` and `~/.config/noctalia/config.toml` are
+read-only symlinks into `/nix/store`: edit `nix/home/niri/config.kdl` and
+`nix/home/noctalia/config.toml` and rebuild. Settings changed in Noctalia's own
+UI go to `~/.local/state/noctalia/settings.toml` and override the file.
 
 ---
 
 # Arch Linux (`arch/`)
 
-The same two machines with **niri**, a scrollable-tiling Wayland compositor,
-instead of GNOME/Hyprland. Package lists are derived from the Nix config so the
-two sides stay comparable.
+The same two machines with **niri** and **Noctalia**, and no GNOME. Package
+lists are derived from the Nix config so the two sides stay comparable, and the
+niri and Noctalia configs are the same files the Nix side links.
 
 ```text
 arch/
   Makefile          # check / iso / iso-podman / clean
   packages/
     base.txt          # shared: shell, dev tools, PipeWire, fonts, podman
-    niri.txt          # niri + waybar, fuzzel, mako, swaylock, greetd
-    macbook-air.txt   # broadcom-wl-dkms, Intel mesa, tlp, thermald, mbpfan
-    xps-8300.txt      # nvidia, incus, prometheus, grafana, jellyfin
+    niri.txt          # niri, noctalia, xwayland-satellite, portals, greetd
+    macbook-air.txt   # broadcom-wl-dkms, Intel mesa, tlp, thermald
+    xps-8300.txt      # incus, prometheus, grafana, jellyfin
+    aur.txt           # the four AUR exceptions (see "Repos, and the four exceptions")
   install/
     install.sh        # pacstrap + fstab + chroot, run from the live ISO
     chroot-setup.sh   # locale, user, modprobe blacklists, bootloader (called by install.sh)
-    dotfiles.sh       # place dotfiles into ~/.config (run as your user, post-boot)
+    dotfiles.sh       # place the configs into ~/.config (run as your user, post-boot)
+    aur.sh            # build the aur.txt exceptions (run as your user, post-boot)
     wifi-connect.sh   # the BCM4360 fallback sequence, ported from the NixOS ISO
   dotfiles/
-    niri/config.kdl   # keybinds mirroring the Hyprland setup
-    waybar/           # bar config + theme
     zsh/zshrc         # matches the oh-my-zsh setup from home/steve.nix
+                      # (niri + noctalia configs come from ../nix/home/)
   iso/
     build.sh          # archiso ISO with broadcom-wl + helpers baked in
     README.md
@@ -258,9 +259,9 @@ from `arch/`. Inside `arch/` the targets are unprefixed (`make iso`,
 `make iso-podman`, `make check`, `make clean`).
 
 Before building, `make arch-check` syntax-checks every script, confirms the
-package lists are non-empty, validates the waybar JSON, and runs
-`niri validate` on the config if niri is installed. It is the default target,
-so a bare `make` inside `arch/` runs it.
+package lists are non-empty, and runs `niri validate` and
+`noctalia config validate` on the shared configs if those binaries are
+installed. It is the default target, so a bare `make` inside `arch/` runs it.
 
 This bakes in `broadcom-wl-dkms`, `linux-lts`, the `use-wl` / `use-brcmsmac` /
 `wifi-connect` helpers, and the whole repo at `/root/airnix`. The stock Arch ISO
@@ -307,23 +308,77 @@ reboot
 
 # after first boot, as steve:
 cd /root/airnix/arch && ./install/dotfiles.sh
+./install/aur.sh                         # the AUR exceptions, see below
 ```
 
 `install.sh` runs `pacstrap` with `base.txt` + `niri.txt` + the host list,
 generates `fstab`, copies the repo to `/root/airnix`, and hands off to
-`chroot-setup.sh` for locale, user, module blacklists, and systemd-boot entries.
+`chroot-setup.sh` for locale, user, module blacklists, systemd-boot entries, and
+a greetd config that launches `niri-session` through tuigreet.
 
-## Niri notes
+## Repos, and the four exceptions
 
-Niri is scrollable tiling: windows sit on an infinite horizontal strip per
+The base install uses **official repos only**. It runs as root from the live
+ISO, `makepkg` refuses to run as root, and AUR PKGBUILDs compile from upstream
+at install time, so putting them in the path that has to work before the machine
+boots would mean bootstrapping a helper mid-install and accepting builds that
+break on any kernel bump.
+
+Four packages have no repo alternative, so they live in `packages/aur.txt` and
+are built **after first boot** by `install/aur.sh`, as your normal user. Nothing
+there is needed to boot. The script bootstraps `paru` from a plain clone on
+first run and filters the list by host, so the Air does not build a GPU driver.
+
+| Package | Why |
+| --- | --- |
+| `nvidia-580xx-dkms` + `-utils` + `-settings` | The only driver that works on the XPS. Arch dropped the proprietary `nvidia` package; the repos now carry only `nvidia-open` (615.x), whose open kernel modules need Turing or newer. Pascal (GTX 10xx) was dropped after branch 580. Without it the card runs on nouveau, which has no NVENC, so Jellyfin transcodes on the CPU. NixOS pins the same branch declaratively with `hardware.nvidia.branch = "legacy_580"`. |
+| `claude-code` | Not in the Arch repos; it is a normal package on NixOS. `npm install -g @anthropic-ai/claude-code` works just as well if you would rather keep the list to the driver alone. |
+| `mbpfan` | Optional. Fan curves on the Air; thermald plus the kernel's applesmc handling cover it otherwise. |
+
+DKMS packages rebuild on kernel updates. If the display fails to come up after
+an update, check `dkms status` before anything else.
+
+ZFS on the XPS is a separate case with the same shape: not in the repos, and
+deliberately not automated. See "XPS: ZFS data pool" below.
+
+---
+
+## niri + Noctalia (both distros)
+
+niri is scrollable tiling: windows sit on an infinite horizontal strip per
 workspace rather than in a split tree. `Super+Left/Right` moves along the strip,
-`Super+Up/Down` moves within a column. The keybinds in `dotfiles/niri/config.kdl`
-otherwise mirror the Hyprland ones (`Super+Return` terminal, `Super+D` launcher,
-`Super+Q` close, `Super+1..4` workspaces).
+`Super+Up/Down` moves within a column, `Super+O` opens the overview.
 
-One real difference from Hyprland: **niri has no built-in XWayland**. X11 apps
-need `xwayland-satellite`, which the config starts at login. If an X11 app shows
-a blank window, check that it is running.
+Noctalia is the desktop shell: bar, launcher, notifications, control center,
+clipboard history, lock screen, idle handling, wallpaper, OSDs, and the polkit
+agent. niri starts it at login; nothing else (waybar, mako, swaylock, ...) is
+installed. `Super+Shift+/` shows every bind. The main ones:
+
+| Keys | Action |
+| --- | --- |
+| `Super+Return` | terminal (kitty) |
+| `Super+D` or `Super+Space` | launcher |
+| `Super+S` | control center |
+| `Super+N` | notification history |
+| `Super+P` | clipboard history |
+| `Super+X` | session menu (lock, logout, reboot, shutdown) |
+| `Super+Shift+,` | Noctalia settings |
+| `Super+Alt+L` | lock |
+| `Super+Q` | close window |
+| `Super+1..6` / `Super+Shift+1..6` | focus / move to workspace |
+| `Super+R` | cycle column width |
+| `Super+F` / `Super+Shift+F` | maximize column / fullscreen |
+| `Super+V` | float / unfloat |
+| `Print` | region screenshot |
+| `Super+Shift+E` | quit niri |
+
+Both configs are validated by `make arch-check` when `niri` and `noctalia` are
+on the host (`niri validate`, `noctalia config validate`).
+
+**X11 apps:** niri has no built-in XWayland. It creates the X11 socket itself
+and starts `xwayland-satellite` (on PATH on both distros) the first time an X11
+client connects. Do not start it or set `DISPLAY` by hand; that breaks the
+built-in handling.
 
 ## XPS: ZFS data pool
 
@@ -352,9 +407,31 @@ kernel on the XPS if you rely on the pool.
 
 ## What each machine gets
 
-Shared across both distros: zsh + plugins, git/gh/lazygit/direnv, neovim,
+Shared across both distros: zsh + plugins, git/gh/lazygit/direnv, vim,
 ripgrep/fd/bat/eza/jq/fzf, Firefox + Chromium, mpv, Podman, PipeWire, Fira Code
-and Nerd Fonts, and a Wayland compositor (Hyprland on NixOS, niri on Arch).
+and Nerd Fonts, and niri + Noctalia (NixOS also keeps GNOME as a fallback
+session).
+
+### Toolchains
+
+The same set on both distros. `nix/home/steve.nix` and `arch/packages/base.txt`
+are kept in step; versions differ because Arch is rolling and NixOS 26.05 is a
+frozen release.
+
+| | Compilers and runtimes | Tooling |
+| --- | --- | --- |
+| C / C++ | gcc, cmake, make, pkg-config | |
+| Go | go | gopls |
+| Rust | rustc, cargo (Arch: the `rust` package) | clippy, rustfmt, rust-analyzer |
+| Node | nodejs, npm, pnpm | typescript-language-server |
+| Python | python 3, uv (no pip: uv covers envs, installs, and tool runs) | ruff |
+| Shell | | shellcheck, shfmt |
+| Nix | | nil, nixpkgs-fmt (NixOS only) |
+
+Editors are VS Code and Zed on both. Two Arch caveats: its `code` package is the
+OSS build, so extensions come from Open VSX rather than the Microsoft
+marketplace, and `claude-code` is not in the Arch repos, so install it with
+`npm install -g @anthropic-ai/claude-code` (it is a normal package on NixOS).
 
 **MacBook Air:** `wl` Wi-Fi, applesmc (fans/temps/backlight), FaceTime camera
 (NixOS), trackpad tap-to-click and natural scrolling, TLP + thermald. The

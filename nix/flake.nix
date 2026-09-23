@@ -29,7 +29,7 @@
       commonModules = [
         ./modules/common.nix
         ./modules/desktop.nix
-        ./modules/hyprland.nix
+        ./modules/niri.nix
         ./modules/steam.nix
         home-manager.nixosModules.home-manager
         homeManagerModule

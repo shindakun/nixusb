@@ -17,7 +17,7 @@
   # the only driver for the BCM4360, so permit it explicitly. Bump this
   # string if a kernel rebuild changes the suffix (nix prints the new one).
   nixpkgs.config.permittedInsecurePackages = [
-    "broadcom-sta-6.30.223.271-59-6.18.36"
+    "broadcom-sta-6.30.223.271-59-6.18.52"
   ];
   boot.extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
   boot.kernelModules = [ "wl" "applesmc" "kvm-intel" ];

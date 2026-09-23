@@ -1,0 +1,38 @@
+# AUR exceptions. Everything else comes from the official repos.
+#
+# The base system is deliberately repo-only: `install.sh` runs pacstrap as root
+# from the live ISO, makepkg refuses to run as root, and AUR PKGBUILDs compile
+# from upstream at install time, so pulling them into the base install would
+# mean bootstrapping a helper mid-install and accepting builds that can break on
+# any kernel or upstream bump. None of that belongs in the path that has to work
+# before the machine boots.
+#
+# These four are listed because there is no repo alternative and going without
+# costs something real. They are installed AFTER first boot, as your normal
+# user, by `install/aur.sh`. Nothing here is required to boot.
+#
+# Every package below rebuilds against the running kernel or upstream, so expect
+# to reinstall a DKMS one after a kernel bump.
+
+# ---- XPS 8300 only: the GTX 1060 has no repo driver -------------------
+# Arch dropped the proprietary `nvidia` package; the repos now ship only
+# `nvidia-open` (615.x), whose open kernel modules need Turing or newer.
+# Pascal (GTX 10xx) was dropped after driver branch 580, so a GTX 1060 needs
+# the 580 LTSB branch, which lives only here. Without it the XPS falls back to
+# nouveau: much slower, and no NVENC, which Jellyfin transcoding uses.
+# (NixOS pins the same branch declaratively: hardware.nvidia.branch = "legacy_580".)
+nvidia-580xx-dkms
+nvidia-580xx-utils
+nvidia-580xx-settings
+
+# ---- both machines ----------------------------------------------------
+# The NixOS side installs claude-code from nixpkgs. The AUR package tracks the
+# same npm release; `npm install -g @anthropic-ai/claude-code` is the
+# alternative if you would rather keep this list to the driver alone.
+claude-code
+
+# ---- MacBook Air only -------------------------------------------------
+# Fan curves via applesmc. thermald plus the kernel's applesmc handling are
+# adequate, so this is optional: install it if the fans run hotter or louder
+# than you want.
+mbpfan

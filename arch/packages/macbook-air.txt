@@ -23,8 +23,9 @@ powertop
 acpi
 
 # ---- Apple hardware ----
-# mbpfan: fan control via applesmc (old Airs run hot).
-mbpfan
+# mbpfan (fan curves via applesmc) is AUR-only: see packages/aur.txt, installed
+# after first boot by install/aur.sh. thermald plus the kernel's own applesmc
+# handling cover the Air without it.
 
 # ---- touchpad ----
 libinput

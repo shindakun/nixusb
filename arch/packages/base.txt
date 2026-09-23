@@ -1,6 +1,10 @@
-# Shared base packages, both machines. Repo packages only (no AUR).
+# Shared base packages, both machines. Official repos only.
 # Install:  pacman -S --needed - < base.txt
 # Lines starting with # and blank lines are ignored by the install scripts.
+#
+# The base install is repo-only on purpose: it runs as root from the live ISO,
+# and makepkg will not run as root. The few things with no repo alternative are
+# in aur.txt and are installed after first boot by install/aur.sh.
 
 # ---- base system ----
 base
@@ -19,7 +23,7 @@ man-pages
 linux
 linux-headers
 linux-lts
-linux-headers-lts
+linux-lts-headers
 
 # ---- shell ----
 zsh
@@ -30,7 +34,6 @@ fzf
 tmux
 
 # ---- editors ----
-neovim
 vim
 
 # ---- dev ----
@@ -39,14 +42,42 @@ git-lfs
 github-cli
 lazygit
 direnv
-nodejs
-npm
-go
+
+# ---- editors (GUI) ----
+# `code` is the OSS build of VS Code: no Microsoft marketplace, use Open VSX.
+# claude-code is not in the Arch repos; install it with:  npm install -g @anthropic-ai/claude-code
+code
+zed
+
+# ---- language toolchains (kept in step with nix/home/steve.nix) ----
+# C / C++ (base-devel already brings gcc, make, and pkgconf; named here so the
+# list reads the same as the Nix one)
 gcc
 cmake
 make
+
+# Go
+go
+
+# Rust. The `rust` package includes cargo, clippy, and rustfmt.
+rust
+
+# Node
+nodejs
+npm
+pnpm
+
+# Python. uv handles envs, installs, and pinned tool runs; no pip needed.
 python
-python-pip
+uv
+
+# ---- language servers, linters, formatters ----
+gopls
+rust-analyzer
+typescript-language-server
+ruff
+shellcheck
+shfmt
 
 # ---- cli tools ----
 ripgrep
@@ -62,7 +93,8 @@ htop
 btop
 tree
 rsync
-p7zip
+7zip
+unzip
 file
 tealdeer
 fastfetch
@@ -83,7 +115,7 @@ pavucontrol
 ttf-fira-code
 ttf-firacode-nerd
 ttf-jetbrains-mono-nerd
-ttf-droid-sans-mono-nerd
+ttf-nerd-fonts-symbols
 noto-fonts
 noto-fonts-emoji
 

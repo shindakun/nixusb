@@ -50,7 +50,8 @@ EOF
 
     systemctl enable tlp.service 2>/dev/null || true
     systemctl enable thermald.service 2>/dev/null || true
-    systemctl enable mbpfan.service 2>/dev/null || true
+    # mbpfan is an AUR package installed after first boot (install/aur.sh),
+    # so it is not here to enable yet; aur.sh prints the enable command.
     ;;
 
   xps-8300)
@@ -59,7 +60,10 @@ EOF
 blacklist b43
 blacklist wl
 EOF
-    # NVIDIA: modesetting is required for Wayland (niri).
+    # NVIDIA: modesetting is required for Wayland (niri). These files are
+    # written now but stay inert until nvidia-580xx-dkms is installed after
+    # first boot (install/aur.sh); the repos have no driver for this Pascal
+    # card. Until then the card runs on nouveau.
     cat > /etc/modprobe.d/nvidia.conf <<'EOF'
 options nvidia_drm modeset=1
 EOF
@@ -114,6 +118,17 @@ title   Arch Linux (LTS)
 linux   /vmlinuz-linux-lts
 initrd  /initramfs-linux-lts.img
 options root=UUID=$ROOT_UUID rw
+EOF
+
+echo "==> greeter: tuigreet launching niri"
+mkdir -p /etc/greetd
+cat > /etc/greetd/config.toml <<EOF
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --remember --cmd niri-session"
+user = "greeter"
 EOF
 
 echo "==> enabling shared services"

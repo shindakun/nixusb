@@ -1,39 +1,32 @@
-# Niri (scrollable-tiling Wayland compositor) + its toolkit.
+# niri (scrollable-tiling Wayland compositor) + Noctalia (the desktop shell).
 # Install:  pacman -S --needed - < niri.txt
 #
-# Unlike Hyprland, niri does NOT embed XWayland. X11 apps need
-# xwayland-satellite, which the session file starts for you.
+# Noctalia provides the bar, launcher, notifications, lock screen, idle
+# handling, wallpaper, clipboard history, OSD, and polkit agent, so none of
+# the usual separate tools (waybar, fuzzel, mako, swaylock, swayidle, swaybg)
+# are installed.
+#
+# niri has no built-in XWayland. It starts xwayland-satellite itself when an
+# X11 app connects, as long as the binary is on PATH.
 
 niri
 xwayland-satellite
+noctalia
 
 # ---- session / portals ----
 xdg-desktop-portal
 xdg-desktop-portal-gtk
 xdg-desktop-portal-gnome
-polkit-gnome
 gnome-keyring
-
-# ---- bar / launcher / notifications ----
-waybar
-fuzzel
-mako
 libnotify
 
-# ---- lock / idle / wallpaper ----
-swaylock
-swayidle
-swaybg
-
 # ---- terminal ----
-alacritty
 kitty
 
-# ---- screenshots / clipboard ----
+# ---- screenshots / clipboard (CLI) ----
 grim
 slurp
 wl-clipboard
-swappy
 
 # ---- display manager ----
 # greetd + tuigreet: light, works cleanly with Wayland sessions.
@@ -44,4 +37,3 @@ greetd-tuigreet
 nautilus
 brightnessctl
 playerctl
-network-manager-applet

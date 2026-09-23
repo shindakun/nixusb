@@ -33,8 +33,7 @@ alias ls='eza'
 alias ll='eza -l --git'
 alias la='eza -la --git'
 alias cat='bat --paging=never'
-alias vim='nvim'
 alias lg='lazygit'
 
-export EDITOR=nvim
-export VISUAL=nvim
+export EDITOR=vim
+export VISUAL=vim

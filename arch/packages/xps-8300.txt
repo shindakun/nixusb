@@ -5,12 +5,12 @@
 # the Air there is no DKMS module and no reason to pin linux-lts.
 
 # ---- NVIDIA GTX 1060 (Pascal) ----
-# `nvidia` matches the `linux` kernel; `nvidia-lts` matches linux-lts. Both are
-# listed so either kernel boots with a working driver.
-nvidia
-nvidia-lts
-nvidia-utils
-nvidia-settings
+# NOT INSTALLABLE FROM THE REPOS. Arch dropped the proprietary `nvidia` package;
+# what is left is `nvidia-open` (615.x), and its open kernel modules need Turing
+# or newer. Pascal was dropped after driver branch 580, so the GTX 1060 needs
+# nvidia-580xx-dkms from the AUR: see packages/aur.txt, installed after first
+# boot by install/aur.sh. Until then the card runs on nouveau (no NVENC, so
+# Jellyfin transcodes on the CPU).
 libva-nvidia-driver
 
 # ---- Wi-Fi: DW1501 / BCM4313 ----

@@ -27,7 +27,7 @@
   # ---- Wi-Fi: neutral boot, driver chosen at runtime -------------------
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.permittedInsecurePackages = [
-    "broadcom-sta-6.30.223.271-59-6.18.36"
+    "broadcom-sta-6.30.223.271-59-6.18.52"
   ];
   # Make `wl` AVAILABLE but do not auto-load it, and do not blacklist the open
   # stack. Nothing competes at boot; `use-wl` / `use-brcmsmac` select per machine.
@@ -53,7 +53,6 @@
   environment.systemPackages = with pkgs; [
     git
     vim
-    neovim
     wget
     curl
     htop
