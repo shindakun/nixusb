@@ -19,7 +19,7 @@ SCRIPTS     := $(wildcard install/*.sh) iso/build.sh
 PKGLISTS    := $(wildcard packages/*.txt)
 # Shared with the NixOS side; dotfiles.sh installs these same files.
 NIRI_CFG     := ../nix/home/niri/config.kdl
-NOCTALIA_CFG := ../nix/home/noctalia/config.toml
+NOCTALIA_CFG := dotfiles/noctalia/config.toml
 OUT         := iso/out
 
 .DEFAULT_GOAL := check
@@ -38,6 +38,14 @@ check:
 	  n=$$(grep -vcE '^\s*(#|$$)' "$$f"); \
 	  test "$$n" -gt 0 && echo "  OK   $$f ($$n pkgs)" \
 	    || { echo "  FAIL $$f has no packages"; exit 1; }; done
+	@echo "==> package lists hold one bare package name per line"
+	@for f in $(PKGLISTS); do \
+	  bad=$$(grep -vE '^\s*(#|$$)' "$$f" | grep -nE '\s' || true); \
+	  test -z "$$bad" && echo "  OK   $$f" \
+	    || { echo "  FAIL $$f has a line that is not a bare package name"; \
+	         echo "$$bad" | sed 's/^/       /'; \
+	         echo "       (pacstrap gets these verbatim: no inline comments)"; \
+	         exit 1; }; done
 	@echo "==> niri config parses (needs niri; skipped if absent)"
 	@command -v niri >/dev/null \
 	  && { niri validate -c $(NIRI_CFG) && echo "  OK   $(NIRI_CFG)"; } \

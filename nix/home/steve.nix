@@ -46,6 +46,28 @@
     settings.url."git@github.com:".insteadOf = "https://github.com/";
   };
 
+  # ---- delta (syntax-highlighted diffs; wires itself as git's pager) --
+  # HM hoisted this out of `programs.git.delta` — explicit git integration.
+  programs.delta = {
+    enable = true;
+    enableGitIntegration = true;
+  };
+
+  # ---- bat (syntax-highlighted `cat`) ---------------------------------
+  programs.bat.enable = true;
+
+  # ---- micro (terminal text editor) -----------------------------------
+  # HM writes settings to ~/.config/micro/settings.json.
+  # Options: https://github.com/zyedidia/micro/blob/master/runtime/help/options.md
+  programs.micro = {
+    enable = true;
+    settings = {
+      colorscheme = "simple";
+      tabsize = 2;
+      tabstospaces = true;
+    };
+  };
+
   # ---- gh (GitHub CLI) -------------------------------------------------
   programs.gh.enable = true;
 
@@ -64,16 +86,36 @@
   # GNOME pre-creates ~/.config/mimeapps.list, which collides with the above and
   # makes home-manager activation fail ("file is in the way"). Let HM overwrite it.
   xdg.configFile."mimeapps.list".force = true;
+  xdg.configFile."niri/config.kdl".force = true;
 
-  # ---- niri + Noctalia ------------------------------------------------
-  # System enablement is in modules/niri.nix; these are the per-user configs,
-  # shared with the Arch side (arch/install/dotfiles.sh copies the same files).
-  # Both land as read-only /nix/store symlinks: edit the files here and rebuild.
-  # A running niri reloads config.kdl on save; Noctalia hot-reloads config.toml.
+  # Suppress the system-wide ibus autostart. nixpkgs ships
+  # /etc/xdg/autostart/ibus-daemon.desktop (pulled in transitively via GNOME),
+  # which systemd's xdg-autostart generator turns into a running user unit even
+  # under Niri. A user-level override with Hidden=true takes precedence and the
+  # generator skips it. Remove this stanza if you actually want an IME.
+  xdg.configFile."autostart/ibus-daemon.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=IBus
+    Hidden=true
+  '';
+
+  # ---- niri (scrollable-tiling Wayland compositor) --------------------
+  # System enablement is in modules/niri.nix. The config is a plain KDL file
+  # shared with the Arch side (arch/install/dotfiles.sh copies the same one),
+  # since nixpkgs 26.05 has no Home Manager module for niri.
+  #
+  # It lands as a read-only /nix/store symlink: edit nix/home/niri/config.kdl
+  # and rebuild, never ~/.config/niri/config.kdl. A running niri reloads the
+  # file on save.
+  #
+  # niri/shell.kdl is the one piece that differs per distro: this machine runs
+  # Noctalia v4 (noctalia-shell, Quickshell-based), while Arch packages only
+  # v5. config.kdl includes it, so the shared file stays identical on both.
   xdg.configFile."niri/config.kdl".source = ./niri/config.kdl;
-  xdg.configFile."noctalia/config.toml".source = ./noctalia/config.toml;
+  xdg.configFile."niri/shell.kdl".source = ./niri/shell-v4.kdl;
 
-  programs.kitty.enable = true; # terminal niri launches (Mod+Return)
+  programs.kitty.enable = true; # the terminal niri launches (Mod+Return)
 
   # ---- User packages (the dev environment, shared by all hosts) -------
   home.packages = with pkgs; [
@@ -93,8 +135,10 @@
     # nicer CLI replacements
     ripgrep
     fd
-    bat
     eza
+
+    # herdr-file-viewer optional renderers (bat + delta wired via programs.*)
+    glow
 
     # browsers
     firefox
@@ -145,15 +189,25 @@
     mpv # video player
     imv # Wayland image viewer
 
-    # Wayland desktop
-    noctalia # shell: bar, launcher, notifications, lock, wallpaper, clipboard
+    # ---- Wayland desktop ----
+    # Noctalia v4 (Quickshell-based) is what runs on the Air today: bar,
+    # launcher, notifications. nixpkgs also carries the native v5 as
+    # `noctalia`, which is what Arch packages; the two are separate installs
+    # with separate config formats, so this side stays on v4 until the Air is
+    # deliberately moved.
+    noctalia-shell
+    quickshell
+
+    wofi # launcher the niri config binds to Mod+D
     wl-clipboard # wl-copy / wl-paste
     grim
-    slurp # screenshots from the CLI (niri's Print bind has its own picker)
-    brightnessctl # backlight from the CLI
+    slurp # screenshot region select (the Print bind pipes these to wl-copy)
+    brightnessctl # backlight keys
     playerctl # media keys
     pavucontrol # audio mixer GUI
   ];
+
+  home.sessionPath = [ "$HOME/.local/bin" ];
 
   # The HM release this config targets. Keep in step with system.stateVersion.
   home.stateVersion = "26.05";

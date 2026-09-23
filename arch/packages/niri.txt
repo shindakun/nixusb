@@ -11,6 +11,9 @@
 
 niri
 xwayland-satellite
+# Noctalia v5 (native). The Air runs v4 (noctalia-shell, Quickshell-based),
+# which Arch does not package at all, so the two machines differ here and only
+# here: config.kdl includes a per-distro shell.kdl that spawns the right one.
 noctalia
 
 # ---- session / portals ----
@@ -19,6 +22,12 @@ xdg-desktop-portal-gtk
 xdg-desktop-portal-gnome
 gnome-keyring
 libnotify
+
+# ---- launcher ----
+# The shared niri config binds Mod+D to wofi (matching the Air). Noctalia has
+# its own launcher too; swap the bind in nix/home/niri/config.kdl if you prefer
+# it on both machines.
+wofi
 
 # ---- terminal ----
 kitty

@@ -1,0 +1,4 @@
+// Noctalia v4 (Quickshell-based): bar, launcher, notifications.
+// Installed to ~/.config/niri/shell.kdl and included by config.kdl.
+// This is the NixOS side; Arch uses shell-v5.kdl (the native v5 binary).
+spawn-at-startup "noctalia-shell"

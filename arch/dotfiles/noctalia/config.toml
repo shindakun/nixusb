@@ -1,6 +1,10 @@
-# Noctalia config, shared by both distros.
-#   NixOS: linked to ~/.config/noctalia/config.toml by Home Manager (home/steve.nix)
-#   Arch:  copied there by arch/install/dotfiles.sh
+# Noctalia v5 config, Arch side only.
+#   Copied to ~/.config/noctalia/config.toml by arch/install/dotfiles.sh.
+#
+# This is NOT shared with the NixOS side. The Air runs Noctalia v4 (the
+# Quickshell build), which is a separate install with a different config
+# format; Arch packages only v5. If the Air is ever moved to v5, this file can
+# move back to nix/home/ and be shared like the niri config.
 #
 # This is the base layer. Changes made in Noctalia's settings UI are saved to
 # ~/.local/state/noctalia/settings.toml and win over this file, so the file

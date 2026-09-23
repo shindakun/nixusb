@@ -1,16 +1,23 @@
-# niri Wayland compositor + the services Noctalia's widgets talk to.
-# Coexists with GNOME (modules/desktop.nix): pick "niri" at the GDM login
-# screen. The niri config and the Noctalia shell config live in home/ so both
-# machines share them.
+# Niri scrollable-tiling Wayland compositor, system-level enablement.
+# Coexists with GNOME (modules/desktop.nix): pick the session at the login
+# screen. The per-user config (keybinds, autostart noctalia-shell, etc.) lives
+# in home/steve.nix so both machines share it.
 { config, lib, pkgs, ... }:
 
 {
-  # nixpkgs module: installs niri, registers the GDM session, wires the
-  # gnome/gtk portals, and enables gnome-keyring.
+  # Installs niri, registers the Wayland session with GDM, and wires
+  # session variables / dbus activation for a working compositor. The nixpkgs
+  # module also sets up the gnome/gtk portals and gnome-keyring.
   programs.niri.enable = true;
 
-  # niri finds xwayland-satellite on PATH and starts it when an X11 client
-  # connects (niri >= 25.08); nothing else is needed for X11 apps.
+  # Portals used to come from modules/hyprland.nix. That module is gone, so the
+  # warning its comment carried is now handled: programs.niri sets xdg.portal
+  # with the gnome + gtk backends, which is what screen sharing and file
+  # pickers need here.
+
+  # Niri has no built-in XWayland. It creates the X11 socket itself and starts
+  # xwayland-satellite on demand when an X11 client connects (niri >= 25.08),
+  # as long as the binary is on PATH.
   environment.systemPackages = [ pkgs.xwayland-satellite ];
 
   # Electron apps (incl. VS Code) on Wayland.

@@ -35,6 +35,7 @@ tmux
 
 # ---- editors ----
 vim
+micro
 
 # ---- dev ----
 git
@@ -83,7 +84,11 @@ shfmt
 ripgrep
 fd
 bat
+# git-delta provides `delta`: syntax-highlighted git diffs.
+git-delta
 eza
+# glow: markdown renderer.
+glow
 jq
 yq
 httpie

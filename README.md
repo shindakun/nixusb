@@ -79,8 +79,8 @@ the strong candidate fix rather than a confirmed one.
 # NixOS (`nix/`)
 
 A single flake configuring both machines plus one installer ISO. Shared user
-environment (zsh, git, dev tools, fonts, the niri and Noctalia configs) is
-written once in Home Manager and used by both hosts.
+environment (zsh, git, dev tools, fonts, the niri config) is written once in
+Home Manager and used by both hosts.
 
 ```text
 nix/
@@ -95,7 +95,8 @@ nix/
   home/
     steve.nix                     # Home Manager: shared user env, links the configs below
     niri/config.kdl               # niri config (also used by the Arch side)
-    noctalia/config.toml          # Noctalia shell config (also used by the Arch side)
+    niri/shell-v4.kdl             # spawns Noctalia v4, included by config.kdl (NixOS)
+    niri/shell-v5.kdl             # spawns Noctalia v5, included by config.kdl (Arch)
   hosts/
     macbook-air/                  # wl Wi-Fi, applesmc, trackpad, thermals (+ real hardware config)
     xps-8300/                     # nvidia, brcmsmac Wi-Fi, ZFS, Incus, Grafana, Jellyfin
@@ -191,10 +192,9 @@ The flake lives in the `nix/` subdirectory, so a flake ref pointing at the repo
 root needs the subdir: `github:shindakun/nixusb?dir=nix#macbook-air`.
 
 Pick **niri** at the GDM login screen; GNOME stays available as a fallback
-session. `~/.config/niri/config.kdl` and `~/.config/noctalia/config.toml` are
-read-only symlinks into `/nix/store`: edit `nix/home/niri/config.kdl` and
-`nix/home/noctalia/config.toml` and rebuild. Settings changed in Noctalia's own
-UI go to `~/.local/state/noctalia/settings.toml` and override the file.
+session. `~/.config/niri/*` are read-only symlinks into `/nix/store`: edit
+`nix/home/niri/config.kdl` and rebuild, never the files in `~/.config`. A
+running niri live-reloads the config, includes and all.
 
 ---
 
@@ -202,14 +202,14 @@ UI go to `~/.local/state/noctalia/settings.toml` and override the file.
 
 The same two machines with **niri** and **Noctalia**, and no GNOME. Package
 lists are derived from the Nix config so the two sides stay comparable, and the
-niri and Noctalia configs are the same files the Nix side links.
+niri config is the same file the Nix side links.
 
 ```text
 arch/
   Makefile          # check / iso / iso-podman / clean
   packages/
     base.txt          # shared: shell, dev tools, PipeWire, fonts, podman
-    niri.txt          # niri, noctalia, xwayland-satellite, portals, greetd
+    niri.txt          # niri, noctalia v5, xwayland-satellite, wofi, portals, greetd
     macbook-air.txt   # broadcom-wl-dkms, Intel mesa, tlp, thermald
     xps-8300.txt      # incus, prometheus, grafana, jellyfin
     aur.txt           # the four AUR exceptions (see "Repos, and the four exceptions")
@@ -220,8 +220,9 @@ arch/
     aur.sh            # build the aur.txt exceptions (run as your user, post-boot)
     wifi-connect.sh   # the BCM4360 fallback sequence, ported from the NixOS ISO
   dotfiles/
-    zsh/zshrc         # matches the oh-my-zsh setup from home/steve.nix
-                      # (niri + noctalia configs come from ../nix/home/)
+    noctalia/config.toml  # Noctalia v5 settings (Arch only; the Air runs v4)
+    zsh/zshrc             # matches the oh-my-zsh setup from home/steve.nix
+                          # (the niri config comes from ../nix/home/niri/)
   iso/
     build.sh          # archiso ISO with broadcom-wl + helpers baked in
     README.md
@@ -349,31 +350,42 @@ niri is scrollable tiling: windows sit on an infinite horizontal strip per
 workspace rather than in a split tree. `Super+Left/Right` moves along the strip,
 `Super+Up/Down` moves within a column, `Super+O` opens the overview.
 
-Noctalia is the desktop shell: bar, launcher, notifications, control center,
-clipboard history, lock screen, idle handling, wallpaper, OSDs, and the polkit
-agent. niri starts it at login; nothing else (waybar, mako, swaylock, ...) is
-installed. `Super+Shift+/` shows every bind. The main ones:
+Noctalia is the desktop shell: bar, launcher, notifications, clipboard history,
+lock screen, wallpaper, OSDs. niri starts it at login, so nothing else (waybar,
+mako, swaylock, ...) is installed. The binds:
 
 | Keys | Action |
 | --- | --- |
 | `Super+Return` | terminal (kitty) |
-| `Super+D` or `Super+Space` | launcher |
-| `Super+S` | control center |
-| `Super+N` | notification history |
-| `Super+P` | clipboard history |
-| `Super+X` | session menu (lock, logout, reboot, shutdown) |
-| `Super+Shift+,` | Noctalia settings |
-| `Super+Alt+L` | lock |
+| `Super+D` | launcher (wofi) |
+| `Super+E` | files (nautilus) |
 | `Super+Q` | close window |
-| `Super+1..6` / `Super+Shift+1..6` | focus / move to workspace |
-| `Super+R` | cycle column width |
-| `Super+F` / `Super+Shift+F` | maximize column / fullscreen |
 | `Super+V` | float / unfloat |
-| `Print` | region screenshot |
-| `Super+Shift+E` | quit niri |
+| `Super+F` / `Super+Shift+F` | fullscreen / maximize column |
+| `Super+R` | cycle preset column width, up to full width |
+| `Super+-` / `Super+=` | shrink / grow column by 10% |
+| `Super+Left/Right` | move along the strip |
+| `Super+Up/Down` | move within a column |
+| `Super+1..4` / `Super+Shift+1..4` | focus / move to workspace |
+| `Print` | region screenshot to the clipboard |
+| `Super+Shift+M` | quit niri |
 
-Both configs are validated by `make arch-check` when `niri` and `noctalia` are
-on the host (`niri validate`, `noctalia config validate`).
+The config is validated by `make arch-check` when `niri` is on the host
+(`niri validate`), along with the Arch-side Noctalia config when `noctalia` is.
+
+### The one place the two distros differ
+
+The Air runs **Noctalia v4** (`noctalia-shell`, the Quickshell build), which is
+what has actually been tested on hardware. Arch does not package v4 at all, in
+the repos or the AUR, so it gets **v5** (`noctalia`, the native rewrite). v5 is
+a fresh install rather than an upgrade, with its own config format, so the two
+are separate setups.
+
+`config.kdl` therefore ends with nothing compositor-specific and starts with
+`include "shell.kdl"`, and each side drops in the right one: Home Manager links
+`shell-v4.kdl`, `arch/install/dotfiles.sh` copies `shell-v5.kdl`. Everything
+else in the niri config is shared byte for byte. Moving the Air to v5 later
+means swapping that one link and adding a `config.toml`.
 
 **X11 apps:** niri has no built-in XWayland. It creates the X11 socket itself
 and starts `xwayland-satellite` (on PATH on both distros) the first time an X11
@@ -409,8 +421,8 @@ kernel on the XPS if you rely on the pool.
 
 Shared across both distros: zsh + plugins, git/gh/lazygit/direnv, vim,
 ripgrep/fd/bat/eza/jq/fzf, Firefox + Chromium, mpv, Podman, PipeWire, Fira Code
-and Nerd Fonts, and niri + Noctalia (NixOS also keeps GNOME as a fallback
-session).
+and Nerd Fonts, micro, delta, glow, and niri + Noctalia (NixOS also keeps GNOME
+as a fallback session).
 
 ### Toolchains
 
@@ -425,6 +437,7 @@ frozen release.
 | Rust | rustc, cargo (Arch: the `rust` package) | clippy, rustfmt, rust-analyzer |
 | Node | nodejs, npm, pnpm | typescript-language-server |
 | Python | python 3, uv (no pip: uv covers envs, installs, and tool runs) | ruff |
+| Editors | vim, micro | delta, glow |
 | Shell | | shellcheck, shfmt |
 | Nix | | nil, nixpkgs-fmt (NixOS only) |
 
