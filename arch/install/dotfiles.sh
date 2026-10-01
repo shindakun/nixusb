@@ -37,7 +37,7 @@ place() {
 place "$SHARED/niri/config.kdl"        "$CFG/niri/config.kdl"
 # config.kdl includes shell.kdl; v5 is the only Noctalia in the Arch repos.
 place "$SHARED/niri/shell-v5.kdl"      "$CFG/niri/shell.kdl"
-place "$DOTS/noctalia/config.toml"     "$CFG/noctalia/config.toml"
+place "$SHARED/noctalia/config.toml"   "$CFG/noctalia/config.toml"
 place "$DOTS/zsh/zshrc"                "$HOME/.zshrc"
 
 mkdir -p "$HOME/Pictures/Screenshots"

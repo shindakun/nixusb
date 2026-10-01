@@ -19,7 +19,8 @@ SCRIPTS     := $(wildcard install/*.sh) iso/build.sh
 PKGLISTS    := $(wildcard packages/*.txt)
 # Shared with the NixOS side; dotfiles.sh installs these same files.
 NIRI_CFG     := ../nix/home/niri/config.kdl
-NOCTALIA_CFG := dotfiles/noctalia/config.toml
+NIRI_SHELL   := ../nix/home/niri/shell-v5.kdl
+NOCTALIA_CFG := ../nix/home/noctalia/config.toml
 OUT         := iso/out
 
 .DEFAULT_GOAL := check
@@ -47,9 +48,12 @@ check:
 	         echo "       (pacstrap gets these verbatim: no inline comments)"; \
 	         exit 1; }; done
 	@echo "==> niri config parses (needs niri; skipped if absent)"
-	@command -v niri >/dev/null \
-	  && { niri validate -c $(NIRI_CFG) && echo "  OK   $(NIRI_CFG)"; } \
-	  || echo "  SKIP niri not installed (validate on the target machine)"
+	@if command -v niri >/dev/null; then \
+	  d=$$(mktemp -d); \
+	  cp $(NIRI_CFG) "$$d/config.kdl"; cp $(NIRI_SHELL) "$$d/shell.kdl"; \
+	  if niri validate -c "$$d/config.kdl"; then echo "  OK   $(NIRI_CFG)"; rm -rf "$$d"; \
+	  else rm -rf "$$d"; exit 1; fi; \
+	else echo "  SKIP niri not installed (validate on the target machine)"; fi
 	@echo "==> noctalia config parses (needs noctalia; skipped if absent)"
 	@command -v noctalia >/dev/null \
 	  && { noctalia config validate $(NOCTALIA_CFG) && echo "  OK   $(NOCTALIA_CFG)"; } \

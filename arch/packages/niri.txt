@@ -11,9 +11,7 @@
 
 niri
 xwayland-satellite
-# Noctalia v5 (native). The Air runs v4 (noctalia-shell, Quickshell-based),
-# which Arch does not package at all, so the two machines differ here and only
-# here: config.kdl includes a per-distro shell.kdl that spawns the right one.
+# Noctalia v5 (native): bar, launcher, notifications.
 noctalia
 
 # ---- session / portals ----

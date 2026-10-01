@@ -109,10 +109,14 @@
   # and rebuild, never ~/.config/niri/config.kdl. A running niri reloads the
   # file on save.
   #
-  # niri/shell.kdl is the one piece that differs per Noctalia major; the
-  # shared config.kdl `include`s it so the rest stays identical across hosts.
+  # config.kdl `include`s shell.kdl, which spawns Noctalia.
   xdg.configFile."niri/config.kdl".source = ./niri/config.kdl;
   xdg.configFile."niri/shell.kdl".source = ./niri/shell-v5.kdl;
+
+  # Noctalia's base layer, shared with the Arch side. Settings changed in its
+  # UI land in ~/.local/state/noctalia/settings.toml and win over this file,
+  # so it can stay a read-only /nix/store symlink.
+  xdg.configFile."noctalia/config.toml".source = ./noctalia/config.toml;
 
   programs.kitty.enable = true; # the terminal niri launches (Mod+Return)
 

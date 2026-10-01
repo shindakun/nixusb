@@ -9,9 +9,7 @@
 // workspace instead of a split tree. Mod+Left/Right walk the strip,
 // Mod+Up/Down walk a column.
 
-// The desktop shell. shell.kdl names the Noctalia binary for the major in use
-// (v5: noctalia, v4: noctalia-shell); Home Manager and dotfiles.sh each put
-// the right file in place, so the rest of this config is identical on both.
+// The desktop shell: spawns Noctalia (bar, launcher, notifications).
 include "shell.kdl"
 
 input {

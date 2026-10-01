@@ -1,3 +1,0 @@
-// Noctalia v4 (Quickshell-based): bar, launcher, notifications.
-// Installed to ~/.config/niri/shell.kdl and included by config.kdl.
-spawn-at-startup "noctalia-shell"
