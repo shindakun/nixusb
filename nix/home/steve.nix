@@ -109,11 +109,10 @@
   # and rebuild, never ~/.config/niri/config.kdl. A running niri reloads the
   # file on save.
   #
-  # niri/shell.kdl is the one piece that differs per distro: this machine runs
-  # Noctalia v4 (noctalia-shell, Quickshell-based), while Arch packages only
-  # v5. config.kdl includes it, so the shared file stays identical on both.
+  # niri/shell.kdl is the one piece that differs per Noctalia major; the
+  # shared config.kdl `include`s it so the rest stays identical across hosts.
   xdg.configFile."niri/config.kdl".source = ./niri/config.kdl;
-  xdg.configFile."niri/shell.kdl".source = ./niri/shell-v4.kdl;
+  xdg.configFile."niri/shell.kdl".source = ./niri/shell-v5.kdl;
 
   programs.kitty.enable = true; # the terminal niri launches (Mod+Return)
 
@@ -190,13 +189,7 @@
     imv # Wayland image viewer
 
     # ---- Wayland desktop ----
-    # Noctalia v4 (Quickshell-based) is what runs on the Air today: bar,
-    # launcher, notifications. nixpkgs also carries the native v5 as
-    # `noctalia`, which is what Arch packages; the two are separate installs
-    # with separate config formats, so this side stays on v4 until the Air is
-    # deliberately moved.
-    noctalia-shell
-    quickshell
+    noctalia # bar, launcher, notifications
 
     wofi # launcher the niri config binds to Mod+D
     wl-clipboard # wl-copy / wl-paste

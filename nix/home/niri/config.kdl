@@ -9,9 +9,9 @@
 // workspace instead of a split tree. Mod+Left/Right walk the strip,
 // Mod+Up/Down walk a column.
 
-// The desktop shell, and the only thing that differs between the two distros:
-// the Air runs Noctalia v4 (noctalia-shell), Arch packages only v5 (noctalia).
-// Home Manager and dotfiles.sh each drop the right one in place.
+// The desktop shell. shell.kdl names the Noctalia binary for the major in use
+// (v5: noctalia, v4: noctalia-shell); Home Manager and dotfiles.sh each put
+// the right file in place, so the rest of this config is identical on both.
 include "shell.kdl"
 
 input {
