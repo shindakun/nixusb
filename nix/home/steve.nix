@@ -98,6 +98,7 @@
   # makes home-manager activation fail ("file is in the way"). Let HM overwrite it.
   xdg.configFile."mimeapps.list".force = true;
   xdg.configFile."niri/config.kdl".force = true;
+  xdg.configFile."herdr/config.toml".force = true;
 
   # Suppress the system-wide ibus autostart. nixpkgs ships
   # /etc/xdg/autostart/ibus-daemon.desktop (pulled in transitively via GNOME),
@@ -128,6 +129,10 @@
   # UI land in ~/.local/state/noctalia/settings.toml and win over this file,
   # so it can stay a read-only /nix/store symlink.
   xdg.configFile."noctalia/config.toml".source = ./noctalia/config.toml;
+
+  # herdr's keybindings. herdr itself is installed outside Nix (see the
+  # sessionPath note below); only its config is declared here.
+  xdg.configFile."herdr/config.toml".source = ./herdr/config.toml;
 
   programs.kitty.enable = true; # the terminal niri launches (Mod+Return)
 

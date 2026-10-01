@@ -1,0 +1,41 @@
+# herdr config, NixOS side.
+#   Linked to ~/.config/herdr/config.toml by Home Manager (home/steve.nix).
+#
+# Edit this file and rebuild, never ~/.config/herdr/config.toml (a read-only
+# /nix/store symlink). `herdr server reload-config` applies it without a
+# restart. `herdr config reset-keys` cannot work against a store symlink —
+# delete the keybindings here instead.
+#
+# The plugin_action bindings below need herdr's own plugin manager to have
+# installed these; it builds them from git into ~/.config/herdr/plugins/,
+# outside Nix:
+#   herdr-file-viewer      github.com/smarzban/herdr-file-viewer
+#   herdr.auto-title       github.com/kryptamine/herdr-auto-title
+#   shindakun.goat-herdr   github.com/shindakun/goat-herdr
+#   shindakun.herdr-rss    github.com/shindakun/herdr-rss
+
+onboarding = false
+
+[[keys.command]]
+key = "prefix+n"
+type = "plugin_action"
+command = "shindakun.herdr-rss.open"
+description = "open feeds"
+
+[[keys.command]]
+key = "prefix+shift+n"
+type = "plugin_action"
+command = "shindakun.herdr-rss.open-full"
+description = "open feeds full screen"
+
+[[keys.command]]
+key = "prefix+f"
+type = "plugin_action"
+command = "herdr-file-viewer.open-file-viewer"
+description = "open file viewer in split"
+
+[[keys.command]]
+key = "prefix+shift+f"
+type = "plugin_action"
+command = "herdr-file-viewer.open-file-viewer-tab"
+description = "open file viewer in tab"
