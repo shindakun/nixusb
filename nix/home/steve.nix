@@ -204,7 +204,17 @@
     pavucontrol # audio mixer GUI
   ];
 
+  # ~/.local/bin holds tools installed outside Nix (herdr). sessionPath covers
+  # shells that source hm-session-vars.sh themselves, e.g. ssh logins.
   home.sessionPath = [ "$HOME/.local/bin" ];
+
+  # The same path for the graphical session. niri runs as a systemd user
+  # service, so its children inherit the user manager's environment, and
+  # `systemctl --user import-environment` in niri-session skips PATH. What does
+  # get imported is hm-session-vars.sh's __HM_SESS_VARS_SOURCED guard, which
+  # then stops every shell under niri from applying sessionPath itself.
+  # environment.d sets PATH on the manager, ahead of all of that.
+  systemd.user.sessionVariables.PATH = "$HOME/.local/bin:$PATH";
 
   # The HM release this config targets. Keep in step with system.stateVersion.
   home.stateVersion = "26.05";
