@@ -18,6 +18,17 @@
       theme = "robbyrussell"; # OMZ default; change to taste
       plugins = [ "git" "direnv" "fzf" "sudo" ];
     };
+
+    # hm-session-vars.sh sets __HM_SESS_VARS_SOURCED before it prepends
+    # home.sessionPath, and the graphical session inherits that guard without
+    # the PATH entry it guards, so shells under niri skip the prepend. Redo it
+    # here: unguarded, and idempotent so PATH does not grow per shell.
+    envExtra = ''
+      case ":$PATH:" in
+        *":$HOME/.local/bin:"*) ;;
+        *) export PATH="$HOME/.local/bin:$PATH" ;;
+      esac
+    '';
   };
 
   # ---- direnv (with nix-direnv) ---------------------------------------
@@ -207,13 +218,15 @@
   # shells that source hm-session-vars.sh themselves, e.g. ssh logins.
   home.sessionPath = [ "$HOME/.local/bin" ];
 
-  # The same path for the graphical session. niri runs as a systemd user
-  # service, so its children inherit the user manager's environment, and
-  # `systemctl --user import-environment` in niri-session skips PATH. What does
-  # get imported is hm-session-vars.sh's __HM_SESS_VARS_SOURCED guard, which
-  # then stops every shell under niri from applying sessionPath itself.
-  # environment.d sets PATH on the manager, ahead of all of that.
-  systemd.user.sessionVariables.PATH = "$HOME/.local/bin:$PATH";
+  # The same path for everything the systemd user manager starts, niri included.
+  # environment.d files are read in lexicographic order across all of their
+  # directories, and NixOS ships /etc/environment.d/50-systemd-path.conf, which
+  # assigns PATH absolutely rather than appending. A file has to sort after that
+  # one to survive; Home Manager's is 10-home-manager.conf, so
+  # systemd.user.sessionVariables cannot carry this.
+  xdg.configFile."environment.d/90-local-bin.conf".text = ''
+    PATH=$HOME/.local/bin:$PATH
+  '';
 
   # The HM release this config targets. Keep in step with system.stateVersion.
   home.stateVersion = "26.05";
