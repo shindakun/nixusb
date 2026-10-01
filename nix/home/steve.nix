@@ -195,7 +195,6 @@
     # ---- Wayland desktop ----
     noctalia # bar, launcher, notifications
 
-    wofi # launcher the niri config binds to Mod+D
     wl-clipboard # wl-copy / wl-paste
     grim
     slurp # screenshot region select (the Print bind pipes these to wl-copy)
