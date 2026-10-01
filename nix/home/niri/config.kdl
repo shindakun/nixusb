@@ -73,4 +73,20 @@ binds {
     Mod+Shift+4 { move-column-to-workspace 4; }
 
     Print { spawn "sh" "-c" "grim -g \"$(slurp)\" - | wl-copy"; }
+
+    // Laptop function keys. niri grabs these, so they have to be bound here;
+    // routing them through Noctalia gets the on-screen OSD with them.
+    XF86MonBrightnessUp   allow-when-locked=true { spawn "noctalia" "msg" "brightness-up"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "noctalia" "msg" "brightness-down"; }
+    XF86KbdBrightnessUp   allow-when-locked=true { spawn "noctalia" "msg" "keyboard-backlight-up"; }
+    XF86KbdBrightnessDown allow-when-locked=true { spawn "noctalia" "msg" "keyboard-backlight-down"; }
+
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "noctalia" "msg" "volume-up"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "noctalia" "msg" "volume-down"; }
+    XF86AudioMute        allow-when-locked=true { spawn "noctalia" "msg" "volume-mute"; }
+    XF86AudioMicMute     allow-when-locked=true { spawn "noctalia" "msg" "mic-mute"; }
+
+    XF86AudioPlay allow-when-locked=true { spawn "noctalia" "msg" "media" "toggle"; }
+    XF86AudioNext allow-when-locked=true { spawn "noctalia" "msg" "media" "next"; }
+    XF86AudioPrev allow-when-locked=true { spawn "noctalia" "msg" "media" "previous"; }
 }
